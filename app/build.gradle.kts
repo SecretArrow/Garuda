@@ -16,8 +16,10 @@ android {
         applicationId = "com.motion.browser"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // CI injects MOTION_VERSION_CODE / MOTION_VERSION_NAME (run number, or v* tag);
+        // local fallback: 1 / 1.0.0
+        versionCode = System.getenv("MOTION_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("MOTION_VERSION_NAME") ?: "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
