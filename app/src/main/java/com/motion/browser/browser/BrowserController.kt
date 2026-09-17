@@ -107,9 +107,18 @@ class BrowserController(private val tabs: TabManager) {
 
     // ------------------------------------------------------------------ JS bridge
 
+    /**
+     * Evaluates [script] and returns its JSON result. WebView wraps string results
+     * in an extra JSON-string layer (our scripts return JSON.stringify(...) text),
+     * so that layer is unwrapped centrally — boolean/number results pass through.
+     */
     suspend fun evaluateJs(script: String): String {
         val engine = tabs.engineForActive() ?: return "null"
-        return engine.evaluateJs(script)
+        val raw = engine.evaluateJs(script)
+        return runCatching {
+            val el = json.parseToJsonElement(raw)
+            if (el is kotlinx.serialization.json.JsonPrimitive && el.isString) el.content else raw
+        }.getOrDefault(raw)
     }
 
     // ------------------------------------------------------------------ interaction
@@ -166,9 +175,8 @@ class BrowserController(private val tabs: TabManager) {
     // ------------------------------------------------------------------ extraction
 
     suspend fun extractText(): String {
-        val raw = evaluateJs("(document.body ? document.body.innerText : '')")
-        return runCatching { json.decodeFromString(String.serializer(), raw) }
-            .getOrDefault("")
+        // evaluateJs already unwraps the JS-string layer — result is plain text.
+        return evaluateJs("(document.body ? document.body.innerText : '')")
             .trim()
             .take(120_000)
     }
