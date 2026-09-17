@@ -67,16 +67,16 @@ internal object Scripts {
       var visible = rect.width > 0 && rect.height > 0 && (el.offsetParent !== null || rect.top >= 0);
       var role = el.getAttribute("role");
       if (!role) {
-        var tag = el.tagName.toLowerCase();
-        role = (tag === "a") ? "link"
-          : (tag === "button") ? "button"
-          : (tag === "select") ? "select"
-          : (tag === "textarea") ? "textbox"
-          : (tag === "input") ? ({"text":"textbox","email":"textbox","search":"textbox","tel":"textbox","url":"textbox","password":"textbox","number":"textbox","checkbox":"checkbox","radio":"radio","submit":"button","button":"button"}[el.type] || "textbox")
-          : (el.isContentEditable ? "textbox" : tag);
+        var tagName = el.tagName.toLowerCase();
+        role = (tagName === "a") ? "link"
+          : (tagName === "button") ? "button"
+          : (tagName === "select") ? "select"
+          : (tagName === "textarea") ? "textbox"
+          : (tagName === "input") ? ({"text":"textbox","email":"textbox","search":"textbox","tel":"textbox","url":"textbox","password":"textbox","number":"textbox","checkbox":"checkbox","radio":"radio","submit":"button","button":"button"}[el.type] || "textbox")
+          : (el.isContentEditable ? "textbox" : tagName);
       }
       var text = "";
-      if (tag(el) === "input" || tag(el) === "textarea") {
+      if (lowerTag(el) === "input" || lowerTag(el) === "textarea") {
         text = el.value || el.placeholder || "";
       } else {
         text = el.innerText || el.getAttribute("aria-label") || el.getAttribute("value") || "";
@@ -95,7 +95,7 @@ internal object Scripts {
     }
     return JSON.stringify(out);
   } catch (e) { return JSON.stringify({error: String(e)}); }
-  function tag(el){ return el.tagName.toLowerCase(); }
+  function lowerTag(el){ return el.tagName.toLowerCase(); }
 })()"""
 
     /** Clicks the element carrying [data-motion-id] and reports whether it existed. */
