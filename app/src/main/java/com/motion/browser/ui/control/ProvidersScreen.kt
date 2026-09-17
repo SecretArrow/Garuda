@@ -373,6 +373,8 @@ private fun ProviderDialog(
     val context = LocalContext.current
     var type by remember { mutableStateOf(initial?.type ?: ProviderType.OPENAI_COMPATIBLE) }
     var name by remember { mutableStateOf(initial?.name ?: "") }
+    // Resolved in composable scope so the confirm lambda stays non-composable-safe.
+    val fallbackName = typeLabel(type)
     var baseUrl by remember { mutableStateOf(initial?.baseUrl ?: "") }
     var model by remember { mutableStateOf(initial?.model ?: "") }
     var apiKey by remember { mutableStateOf("") }
@@ -475,7 +477,6 @@ private fun ProviderDialog(
         confirmButton = {
             TextButton(onClick = {
                 val base = initial
-                val fallbackName = typeLabel(type)
                 val config = (base ?: ProviderConfig(
                     id = UUID.randomUUID().toString(),
                     type = type,
