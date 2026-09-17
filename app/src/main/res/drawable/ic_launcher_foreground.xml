@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Motion "M" bolt mark -->
+    <path
+        android:fillColor="#5B8CFF"
+        android:pathData="M30,74 L30,38 L36,38 L47,58 L58,38 L64,38 L64,74 L58,74 L58,50 L48,68 L44,68 L34,50 L34,74 Z" />
+    <path
+        android:fillColor="#FFC857"
+        android:pathData="M70,30 L60,50 L68,50 L56,76 L64,54 L56,54 Z" />
+</vector>

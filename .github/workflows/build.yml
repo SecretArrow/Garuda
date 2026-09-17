@@ -1,0 +1,185 @@
+name: Motion Browser CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: motion-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint + Unit Tests + Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle (cached)
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Lint + unit tests
+        run: ./gradlew :app:lintDebug :app:testDebugUnitTest --parallel --build-cache --stacktrace
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --parallel --build-cache --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
+
+  instrumented:
+    name: Emulator Smoke Tests (install + launch + FATAL check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle (cached)
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: true
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls /dev/kvm && echo "KVM available"
+
+      - name: Run instrumented tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          emulator-build: 11076708
+          script: |
+            ./gradlew :app:connectedDebugAndroidTest --parallel --stacktrace
+            echo "--- FATAL EXCEPTION check ---"
+            if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+              adb logcat -d | grep -A 30 "FATAL EXCEPTION" | head -120
+              echo "::error::FATAL EXCEPTION detected in logcat"
+              exit 1
+            else
+              echo "No FATAL EXCEPTION in logcat — app installed and ran cleanly"
+            fi
+
+      - name: Upload instrumented logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-logs
+          path: |
+            app/build/outputs/androidTest-results/
+            app/build/reports/androidTests/
+          if-no-files-found: ignore
+
+  release:
+    name: Release APK (split per ABI) + AAB
+    runs-on: ubuntu-latest
+    needs: [ quality ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle (cached)
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Create ephemeral signing keystore
+        run: |
+          KS="$RUNNER_TEMP/motion-release.jks"
+          keytool -genkeypair -v \
+            -keystore "$KS" -alias motion \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass motion123 -keypass motion123 \
+            -dname "CN=Motion Browser, OU=Motion, O=Motion, L=Jakarta, ST=Jakarta, C=ID"
+          echo "MOTION_KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
+          echo "MOTION_KEYSTORE_PASSWORD=motion123" >> "$GITHUB_ENV"
+          echo "MOTION_KEY_ALIAS=motion" >> "$GITHUB_ENV"
+          echo "MOTION_KEY_PASSWORD=motion123" >> "$GITHUB_ENV"
+
+      - name: Build release APK (per-ABI split + universal) and AAB
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --parallel --build-cache --stacktrace
+
+      - name: Upload universal release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-universal
+          path: app/build/outputs/apk/release/*universal*.apk
+          if-no-files-found: error
+
+      - name: Upload arm64-v8a release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-arm64-v8a
+          path: app/build/outputs/apk/release/*arm64-v8a*.apk
+          if-no-files-found: error
+
+      - name: Upload armeabi-v7a release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-armeabi-v7a
+          path: app/build/outputs/apk/release/*armeabi-v7a*.apk
+          if-no-files-found: error
+
+      - name: Upload x86 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-x86
+          path: app/build/outputs/apk/release/*x86*.apk
+          if-no-files-found: error
+
+      - name: Upload x86_64 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-x86_64
+          path: app/build/outputs/apk/release/*x86_64*.apk
+          if-no-files-found: error
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

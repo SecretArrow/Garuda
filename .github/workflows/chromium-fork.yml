@@ -1,0 +1,46 @@
+name: Chromium Fork Build
+
+# NOTE (honest engineering, spec §77):
+# A genuine Chromium source build needs ~200 GB disk and 6–20+ hours.
+# GitHub-hosted runners provide ~14 GB disk and a 6 h job limit, so this job
+# CANNOT run there. It is defined for a self-hosted runner with Chromium-class
+# resources only. See motion-chromium/docs/BUILD_CHROMIUM.md.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  chromium-fork:
+    name: Build Motion Chromium (self-hosted, ~200 GB disk required)
+    runs-on: [ self-hosted, chromium ]
+    timeout-minutes: 1440
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify build resources
+        run: |
+          df -h .
+          nproc
+          free -h
+          test -d /dev/shm && df -h /dev/shm
+
+      - name: Fetch + sync Chromium (depot_tools)
+        run: bash motion-chromium/tools/fetch_chromium.sh
+
+      - name: Apply Motion patch series
+        run: bash motion-chromium/tools/apply_patches.sh
+
+      - name: Configure GN (Android target)
+        run: bash motion-chromium/tools/gn_gen_android.sh
+
+      - name: Build Motion Browser (Chromium target)
+        run: bash motion-chromium/tools/build_android.sh
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: MotionBrowser-chromium-fork-apk
+          path: |
+            out/Motion/apks/*.apk
+          if-no-files-found: error
