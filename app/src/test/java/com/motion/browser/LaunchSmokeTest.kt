@@ -101,8 +101,10 @@ class LaunchSmokeTest {
     fun rateLimiter_blocksWhenBudgetExhausted() {
         val limiter = RateLimiter()
         repeat(5) { limiter.record("goal-1", "openUrl") }
-        assertTrue(limiter.exceeded("goal-1", "openUrl", 5))
-        assertFalse(limiter.exceeded("goal-1", "openUrl", 6))
+        kotlinx.coroutines.runBlocking {
+            assertTrue(limiter.exceeded("goal-1", "openUrl", 5))
+            assertFalse(limiter.exceeded("goal-1", "openUrl", 6))
+        }
     }
 
     @Test
@@ -114,8 +116,8 @@ class LaunchSmokeTest {
             val dao = ServiceLocator.database.goalDao()
             val goal = com.motion.browser.data.entity.GoalEntity(
                 id = "g_test", name = "Test goal", instruction = "do it", enabled = true,
-                scheduleJson = "{}", allowedDomains = "", blockedDomains = "",
-                allowedActions = "", blockedActions = "", confirmationPolicy = "AUTO",
+                scheduleJson = "{}", allowedDomains = emptyList(), blockedDomains = emptyList(),
+                allowedActions = emptyList(), blockedActions = emptyList(), confirmationPolicy = "AUTO",
                 notificationPolicy = "", memoryPolicy = "", maxSteps = 10,
                 maxRuntimeMinutes = 5, maxDownloads = 1, maxPosts = 0, maxRetries = 2,
                 createdAt = 1, updatedAt = 1, lastRun = null, nextRun = null, status = "IDLE"
