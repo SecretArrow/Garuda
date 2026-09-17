@@ -54,6 +54,7 @@ jobs:
   instrumented:
     name: Emulator Smoke Tests (install + launch + FATAL check)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,7 +68,7 @@ jobs:
       - name: Setup Gradle (cached)
         uses: gradle/actions/setup-gradle@v3
         with:
-          cache-read-only: true
+          cache-read-only: false
 
       - name: Enable KVM
         run: |
