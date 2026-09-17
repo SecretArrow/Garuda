@@ -205,7 +205,7 @@ class BrowserController(private val tabs: TabManager) {
     private suspend fun observePageRaw(): PageObservation {
         val url = currentUrl()
         val title = currentTitle()
-        if (url == NEW_TAB_URL || !url.startsWith("http")) {
+        if (url == NEW_TAB_URL || url == "about:blank") {
             return PageObservation(url = url, title = title, visibleText = "", links = emptyList(),
                 elements = emptyList(), metadata = emptyMap(), domSummary = "")
         }

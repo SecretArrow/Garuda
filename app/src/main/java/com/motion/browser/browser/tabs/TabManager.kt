@@ -96,23 +96,48 @@ class TabManager(private val activity: Context) {
 
     fun createTab(url: String = NEW_TAB_URL, isPrivate: Boolean = false): String {
         val id = "tab_" + UUID.randomUUID().toString().take(12)
-        val engine = WebViewEngine(id, isPrivate, activity)
-        engine.fileChooser.onLaunch = { request -> fileChooserLauncher?.invoke(request) }
-        val container = TouchDetectFrameLayout(activity) { _touchOnTab.tryEmit(id) }
-        container.addView(engine.ensureCreated())
-        holders[id] = Holder(engine, container)
+        // WebView creation REQUIRES a Looper thread — marshal to main when called
+        // from IO/worker contexts (agent tools, session restore, tests).
+        onMainThreadBlocking {
+            val engine = WebViewEngine(id, isPrivate, activity)
+            engine.fileChooser.onLaunch = { request -> fileChooserLauncher?.invoke(request) }
+            val container = TouchDetectFrameLayout(activity) { _touchOnTab.tryEmit(id) }
+            container.addView(engine.ensureCreated())
+            holders[id] = Holder(engine, container)
+        }
         _tabs.value = _tabs.value + Tab(id = id, url = url, title = "", isPrivate = isPrivate)
         if (_activeTabId.value == null) _activeTabId.value = id
 
-        collectEngineEvents(id, engine)
+        holders[id]?.let { collectEngineEvents(id, it.engine) }
 
         when {
-            url != NEW_TAB_URL && id == _activeTabId.value -> engine.load(url)
+            url != NEW_TAB_URL && id == _activeTabId.value -> holders[id]?.engine?.load(url)
             url != NEW_TAB_URL -> pendingLoad[id] = url
         }
         scope.launch { persistSession() }
         return id
     }
+
+    /** Runs [block] on the main thread; blocks caller only when off-main (test/IO safe). */
+    private fun <T> onMainThreadBlocking(block: () -> T): T {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return block()
+        val latch = java.util.concurrent.CountDownLatch(1)
+        val result = java.util.concurrent.atomic.AtomicReference<T?>()
+        mainHandler.post {
+            try {
+                result.set(block())
+            } catch (t: Throwable) {
+                android.util.Log.e("TabManager", "main-thread block failed", t)
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await(15, java.util.concurrent.TimeUnit.SECONDS)
+        @Suppress("UNCHECKED_CAST")
+        return result.get() as T
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     private fun collectEngineEvents(tabId: String, engine: WebViewEngine) {
         scope.launch {
