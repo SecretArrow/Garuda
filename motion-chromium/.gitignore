@@ -1,0 +1,4 @@
+# Track B build-machine artifacts (generated on a self-hosted runner; never committed)
+chromium/
+out/
+VERSION_MOTION

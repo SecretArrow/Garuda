@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000004 Mon Sep 17 00:00:00 2001
+From: Motion Browser Fork Maintainers <motion@users.noreply.github.com>
+Date: Fri, 21 Feb 2025 10:20:00 +0000
+Subject: [PATCH 0005] motion: flags — MotionAgentToggle feature constant
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Purpose
+=======
+Adds the `MotionAgentToggle` feature to ChromeFeatureList so the autonomous
+agent bridge has a kill switch visible in chrome://flags (and remotely
+configurable through the standard finch/feature machinery, which Motion uses
+ONLY for rollout control — never to weaken security, spec §6).
+
+Gating semantics (see motion/security/SECURITY_NOTES.md):
+    agent events flow only when
+        ChromeFeatureList.isEnabled("MotionAgentToggle") == true   (this patch)
+    AND the user activated the agent in Motion settings
+        (MotionAgentBridge.setAgentActive(true) / native runtime state).
+    The bridge fails closed: any error resolving the flag disables the agent.
+
+Rebase notes
+============
+- ChromeFeatureList.java (chrome/browser/flags/android/java/src/org/chromium/
+  chrome/browser/flags/) rotates constantly: neighboring constants and the
+  sExperiments map are reshuffled every release. The anchors below are
+  illustrative; re-anchor at the rebased revision keeping alphabetical
+  placement.
+- Full chrome://flags visibility also wants a native entry (flag-metadata /
+  about_flags); until that lands at rebase, the toggle is controllable via
+  `adb shell device_config put chrome android?` is NOT used by Motion — the
+  supported paths are: Motion settings UI (Track A parity) and the feature
+  being compiled in its default state (disabled until user activation).
+
+Honesty note (spec §77)
+=======================
+Authored against the upstream file layout as documented for 130.0.6723.58.
+NOT verified against a real Chromium checkout — rebase expected.
+---
+ .../org/chromium/chrome/browser/flags/ChromeFeatureList.java    | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java b/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
+index 6b7c9d0e..2e4f5a6b 100644
+--- a/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
++++ b/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
+@@ -3204,3 +3204,7 @@
+     public static final String OMNIBOX_AUX_SEARCH = "OmniboxAuxSearch";
+     public static final String PAGE_VISIBILITY = "PageVisibility";
++    // Motion (0005): master toggle for the autonomous agent bridge.
++    // See motion/java/src/com/motion/chromium/MotionAgentBridge.java and
++    // motion/security/SECURITY_NOTES.md for the capability chain.
++    public static final String MOTION_AGENT_TOGGLE = "MotionAgentToggle";
+     public static final String READ_LATER = "ReadLater";
+@@ -3460,2 +3464,3 @@
+         sExperiments.put(PAGE_VISIBILITY, PAGE_VISIBILITY);
++        sExperiments.put(MOTION_AGENT_TOGGLE, MOTION_AGENT_TOGGLE);
+         sExperiments.put(READ_LATER, READ_LATER);
+-- 
+2.39.5
+

@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Motion Browser Fork Maintainers <motion@users.noreply.github.com>
+Date: Fri, 21 Feb 2025 10:00:00 +0000
+Subject: [PATCH 0001] motion: branding — product name
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Purpose
+=======
+Rebrand the browser surface strings from the Chromium default to the Motion
+Browser fork identity: `app_name` (launcher/activity label) becomes
+"Motion Browser", and a `motion_product_name` string is added for
+Motion-specific UI to reference instead of hardcoding.
+
+Rebase notes
+============
+- The exact string file may shift between revisions: upstream splits or moves
+  per-channel name strings (channel_constants.xml has gained channel variants
+  and brand-specific copies in the past). If the anchor below no longer
+  matches, locate the equivalent product-name string resource for the
+  chrome_public_apk target and re-shape this hunk minimally.
+- tools/apply_patches.sh tolerates this drift: it applies via `git am --3way`,
+  falls back to `git apply --3way`, and finally to `patch --fuzz=3` when
+  MOTION_PATCH_ALLOW_FUZZ=1 (default).
+- Do NOT translate `motion_product_name`; it is a fork identity constant.
+
+Honesty note (spec §77)
+=======================
+Authored against the upstream file layout as documented for 130.0.6723.58.
+NOT verified against a real Chromium checkout — rebase expected.
+---
+ chrome/android/java/res/values/channel_constants.xml | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/android/java/res/values/channel_constants.xml b/chrome/android/java/res/values/channel_constants.xml
+index 1a2b3c4d..5e6f7a8b 100644
+--- a/chrome/android/java/res/values/channel_constants.xml
++++ b/chrome/android/java/res/values/channel_constants.xml
+@@ -4,6 +4,11 @@
+      found in the LICENSE file. -->
+ 
+ <resources>
+-    <!-- The application name displayed to the user. -->
+-    <string name="app_name" translateable="false">Chromium</string>
++    <!-- The application name displayed to the user.
++         Motion (0001): fork product branding. The exact string file shifts
++         between Chromium revisions (channel variants may be split into other
++         values/ files); apply_patches.sh tolerates that drift via 3-way and
++         fuzz fallback. -->
++    <string name="app_name" translateable="false">Motion Browser</string>
++    <string name="motion_product_name" translateable="false">Motion Browser</string>
+ </resources>
+-- 
+2.39.5
+

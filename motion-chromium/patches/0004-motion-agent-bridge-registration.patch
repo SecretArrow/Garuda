@@ -1,0 +1,78 @@
+From 0000000000000000000000000000000000000003 Mon Sep 17 00:00:00 2001
+From: Motion Browser Fork Maintainers <motion@users.noreply.github.com>
+Date: Fri, 21 Feb 2025 10:15:00 +0000
+Subject: [PATCH 0004] motion: bridge — register MotionAgentBridge at browser startup
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Purpose
+=======
+Registers the Motion agent bridge with the browser process:
+
+1. chrome/android/BUILD.gn: adds `//motion:motion_java` to the `chrome_java`
+   dependency list so the Motion tree (see motion/BUILD.gn) compiles into the
+   browser. Dep direction: chrome_java -> motion_java; motion_java never
+   depends on chrome_java (isolation rule, docs/UPSTREAM_STRATEGY.md §4.3).
+2. ChromeActivity.java: calls `MotionAgentBridge.onBrowserActivityStart(this)`
+   from `onStartWithNative()` — the earliest point where the native library is
+   up and an Activity context exists. The bridge is a no-op until the agent is
+   enabled (feature flag from patch 0005 AND user activation), so this hook
+   does not change behavior for normal browsing.
+
+Binding points are documented in motion/README.md and inside
+MotionAgentBridge.java itself. The native counterpart
+(motion/browser/bridge/motion_agent_bridge.cc) is added at rebase time and
+implements content::WebContentsObserver, calling back into the
+@CalledByNative methods on the UI thread.
+
+Rebase notes
+============
+- Paths verified against the documented file layout for 130.0.6723.58 —
+  rebase expected: `chrome_java` is defined in chrome/android/BUILD.gn and
+  its deps list is rewritten frequently; anchor on the
+  `component("chrome_java")` / `deps` block at the rebased revision.
+- `onStartWithNative()` lives in ChromeActivity (inherited hook from
+  AsyncInitializationActivity); if the hook moves up the class hierarchy,
+  re-anchor there.
+- Import ordering (com.* before org.* per Chromium style) may need to be
+  adjusted if upstream's import block drifted.
+
+Honesty note (spec §77)
+=======================
+Authored against the upstream file layout as documented for 130.0.6723.58.
+NOT verified against a real Chromium checkout — rebase expected.
+---
+ chrome/android/BUILD.gn                                        |  1 +
+ .../org/chromium/chrome/browser/ChromeActivity.java            |  4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/chrome/android/BUILD.gn b/chrome/android/BUILD.gn
+index 0f1e2d3c..3344aabb 100644
+--- a/chrome/android/BUILD.gn
++++ b/chrome/android/BUILD.gn
+@@ -2180,4 +2180,5 @@ component("chrome_java") {
+   deps = [
+     ":base_module_java",
++    "//motion:motion_java",
+     "//chrome/browser/android:system_webview_packages_java",
+     "//components/embedder_support/android:context_menu_java",
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ChromeActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/ChromeActivity.java
+index 5f6a7b8c..1d2e3f4a 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ChromeActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ChromeActivity.java
+@@ -76,2 +76,3 @@ import org.chromium.chrome.browser.compositor.layouts.LayoutManagerChrome;
+ import org.chromium.chrome.browser.dependency_injection.ChromeActivityCommonComponent;
++import com.motion.chromium.MotionAgentBridge;
+ import org.chromium.chrome.browser.init.AsyncInitializationActivity;
+@@ -1230,4 +1231,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent, A extend
+     @Override
+     public void onStartWithNative() {
+         super.onStartWithNative();
++        // Motion (0004): register this activity with the agent bridge.
++        // TODO(rebase): confirm hook name/signature against the rebased rev.
++        MotionAgentBridge.onBrowserActivityStart(this);
+ 
+-- 
+2.39.5
+

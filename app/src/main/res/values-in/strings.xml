@@ -1,4 +1,207 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Motion Browser</string>
+
+    <string name="common_yes">Ya</string>
+    <string name="common_no">Tidak</string>
+    <string name="err_generic">Terjadi kesalahan</string>
+    <string name="action_approve">Setujui</string>
+    <string name="action_back">Kembali</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_reject">Tolak</string>
+    <string name="action_resume">Lanjutkan</string>
+    <string name="action_run_now">Jalankan sekarang</string>
+    <string name="action_save">Simpan</string>
+    <string name="label_none">Tidak ada</string>
+    <string name="label_not_set">Belum diatur</string>
+
+    <string name="ai_panel_title">Motion AI</string>
+    <string name="ai_mode_manual">MANUAL</string>
+    <string name="ai_mode_copilot">COPILOT</string>
+    <string name="ai_mode_autonomous">OTONOM</string>
+    <string name="ai_manual_banner">Mode manual: AI tidak mengoperasikan browser</string>
+    <string name="ai_empty_transcript">Katakan apa yang ingin Motion lakukan di halaman ini.</string>
+    <string name="ai_input_hint">Minta Motion bertindak, membaca, atau memantau…</string>
+    <string name="ai_send">Kirim</string>
+    <string name="ai_quick_actions">Aksi cepat</string>
+    <string name="ai_privacy_note">Saat agen bekerja, konten halaman yang relevan dikirim ke penyedia AI yang kamu konfigurasikan. Rahasia tidak pernah keluar dari perangkat.</string>
+    <string name="ai_status_working">Bekerja</string>
+    <string name="ai_status_step">Langkah %1$d: %2$s</string>
+    <string name="ai_status_waiting_approval">Menunggu persetujuanmu</string>
+    <string name="ai_status_paused">Dijeda: %1$s</string>
+    <string name="ai_status_failed">Gagal: %1$s</string>
+    <string name="ai_task_finished">Tugas selesai — lihat Pusat Kontrol untuk log lengkap.</string>
+    <string name="ai_approval_badge">Perlu persetujuan</string>
+    <string name="ai_stop_all">HENTIKAN SEMUA AGEN</string>
+    <string name="ai_stop_title">Berhenti darurat</string>
+    <string name="ai_stop_text">Hentikan semua pekerjaan agen yang aktif dan dalam antrean? Status tugas disimpan dan bisa dilanjutkan nanti.</string>
+    <string name="ai_stop_done">Semua agen dihentikan. Status disimpan untuk dilanjutkan.</string>
+
+    <string name="qa_summarize">Ringkas</string>
+    <string name="qa_translate">Terjemahkan</string>
+    <string name="qa_explain">Jelaskan</string>
+    <string name="qa_extract">Ekstrak</string>
+    <string name="qa_find">Cari</string>
+    <string name="qa_compare">Bandingkan</string>
+    <string name="qa_research">Riset</string>
+    <string name="qa_act">Bertindak</string>
+    <string name="qa_automate">Otomatiskan</string>
+    <string name="instr_summarize">Ringkas halaman saat ini dalam beberapa poin yang jelas.</string>
+    <string name="instr_translate">Terjemahkan konten utama halaman ini ke Bahasa Indonesia dan tampilkan terjemahannya.</string>
+    <string name="instr_explain">Jelaskan halaman ini dengan bahasa sederhana: tentang apa dan apa yang paling penting?</string>
+    <string name="instr_extract">Ekstrak informasi terstruktur dari halaman ini (judul, harga, tabel, tautan penting).</string>
+    <string name="instr_find">Temukan informasi yang diminta di halaman ini dan kutip baris sumbernya.</string>
+    <string name="instr_compare">Bandingkan halaman ini dengan tab lain yang terbuka dan rangkum perbedaannya.</string>
+    <string name="instr_research">Riset topik halaman ini: buka 2–3 sumber terpercaya di tab baru, silang periksa faktanya dan rangkum dengan tautan.</string>
+    <string name="instr_act">Bertindak di halaman ini sesuai instruksi: </string>
+    <string name="instr_automate">Buat otomatisasi dari permintaan ini: </string>
+
+    <string name="cc_title">Motion AI</string>
+    <string name="cc_section_overview">Ringkasan</string>
+    <string name="cc_count_running">Berjalan</string>
+    <string name="cc_count_scheduled">Terjadwal</string>
+    <string name="cc_count_approval">Perlu persetujuan</string>
+    <string name="cc_count_paused">Dijeda</string>
+    <string name="cc_count_failed">Gagal</string>
+    <string name="cc_section_goals">Tujuan</string>
+    <string name="cc_section_scheduled">Terjadwal</string>
+    <string name="cc_section_approvals">Persetujuan</string>
+    <string name="cc_section_history">Riwayat</string>
+    <string name="cc_section_memory">Memori</string>
+    <string name="cc_section_permissions">Perizinan</string>
+    <string name="cc_new_goal">Otomatisasi baru</string>
+    <string name="cc_open_providers">Penyedia AI</string>
+    <string name="cc_open_logs">Log</string>
+    <string name="cc_emergency_stop">STOP DARURAT</string>
+    <string name="cc_emergency_title">Hentikan semua agen?</string>
+    <string name="cc_emergency_text">Eksekusi aktif, aksi dalam antrean, dan alur kerja otonom akan dihentikan. Status tugas disimpan untuk dilanjutkan nanti.</string>
+    <string name="cc_emergency_active">Stop darurat aktif</string>
+    <string name="cc_empty_goals">Belum ada tujuan. Buat otomatisasi dari panel AI atau tombol di bawah.</string>
+    <string name="cc_empty_triggers">Tidak ada pemicu terjadwal.</string>
+    <string name="cc_empty_approvals">Tidak ada yang perlu kamu setujui saat ini.</string>
+    <string name="cc_empty_history">Belum ada eksekusi.</string>
+    <string name="cc_empty_memory">Memori agen kosong.</string>
+    <string name="cc_empty_permissions">Tidak ada aturan domain. Kebijakan bawaan berlaku: bebas membaca, pengiriman form butuh persetujuan.</string>
+    <string name="approval_details">Detail aksi</string>
+
+    <string name="goal_next_run">Eksekusi berikutnya: %1$s</string>
+    <string name="goal_not_scheduled">Tidak terjadwal</string>
+    <string name="goal_run_started">Tujuan dijalankan</string>
+    <string name="goal_deleted">Tujuan dihapus</string>
+    <string name="goal_delete_title">Hapus tujuan</string>
+    <string name="goal_delete_text">Hapus tujuan ini beserta jadwalnya? Riwayat eksekusi tetap disimpan.</string>
+
+    <string name="ge_title_new">Otomatisasi baru</string>
+    <string name="ge_title_edit">Edit otomatisasi</string>
+    <string name="ge_nl_hint">mis. Setiap hari kerja pukul 8 pagi cek dashboard kerja saya dan beri tahu apa yang perlu perhatian</string>
+    <string name="ge_interpret">Tafsirkan</string>
+    <string name="ge_interpreting">Menafsirkan…</string>
+    <string name="ge_understood">Motion memahami otomatisasimu sebagai:</string>
+    <string name="ge_planner_unavailable">Perencana belum siap (belum ada penyedia AI). Kamu tetap bisa mengisi formulir secara manual.</string>
+    <string name="ge_draft_name">Nama</string>
+    <string name="ge_draft_schedule">Jadwal</string>
+    <string name="ge_draft_domains">Domain</string>
+    <string name="ge_draft_actions">Aksi</string>
+    <string name="ge_draft_notify">Beri tahu saat ada yang ditemukan</string>
+    <string name="ge_name_label">Nama tujuan</string>
+    <string name="ge_instruction_label">Instruksi</string>
+    <string name="ge_schedule_kind">Jenis jadwal</string>
+    <string name="ge_time_label">Waktu (HH:mm)</string>
+    <string name="ge_interval_label">Interval (menit, min 15)</string>
+    <string name="ge_weekdays_label">Hari kerja (Sen=1 … Min=7, pisah koma)</string>
+    <string name="ge_domains_label">Domain yang diizinkan (pisah koma, kosong = semua)</string>
+    <string name="ge_max_steps">Maks langkah per eksekusi</string>
+    <string name="ge_notification">Kirim notifikasi</string>
+    <string name="ge_policy_label">Kebijakan persetujuan</string>
+    <string name="ge_activate">Aktifkan</string>
+    <string name="ge_saved_no_scheduler">Tujuan disimpan. Penjadwal masih memulai — aktifkan dari menu Tujuan sebentar lagi.</string>
+
+    <string name="schedule_once">Sekali</string>
+    <string name="schedule_hourly">Setiap jam</string>
+    <string name="schedule_interval">Setiap N menit</string>
+    <string name="schedule_daily">Harian</string>
+    <string name="schedule_weekly">Mingguan</string>
+    <string name="schedule_weekdays">Hari kerja</string>
+    <string name="schedule_monthly">Bulanan (siklus 28 hari)</string>
+    <string name="schedule_desc_once">Berjalan satu kali</string>
+    <string name="schedule_desc_hourly">Berjalan setiap jam</string>
+    <string name="schedule_desc_interval">Berjalan setiap N menit (minimum Android 15)</string>
+    <string name="schedule_desc_daily">Berjalan setiap hari pada waktu yang dipilih</string>
+    <string name="schedule_desc_weekly">Berjalan seminggu sekali pada waktu yang dipilih</string>
+    <string name="schedule_desc_weekdays">Berjalan Senin–Jumat pada waktu yang dipilih</string>
+    <string name="schedule_desc_monthly">Berjalan dengan siklus 28 hari (batas latar belakang Android — aproksimasi jujur)</string>
+
+    <string name="weekday_mon">Sen</string>
+    <string name="weekday_tue">Sel</string>
+    <string name="weekday_wed">Rab</string>
+    <string name="weekday_thu">Kam</string>
+    <string name="weekday_fri">Jum</string>
+    <string name="weekday_sat">Sab</string>
+    <string name="weekday_sun">Min</string>
+
+    <string name="run_status_running">Berjalan</string>
+    <string name="run_status_succeeded">Berhasil</string>
+    <string name="run_status_failed">Gagal</string>
+    <string name="run_status_paused">Dijeda</string>
+    <string name="run_status_stopped">Dihentikan</string>
+    <string name="run_status_pending">Menunggu</string>
+
+    <string name="trigger_last_fired">Terakhir berjalan: %1$s</string>
+    <string name="trigger_never_fired">Belum pernah berjalan</string>
+
+    <string name="memory_scope_global">Global</string>
+    <string name="memory_scope_goal">Tujuan</string>
+    <string name="memory_scope_site">Situs</string>
+    <string name="memory_scope_run">Eksekusi</string>
+    <string name="memory_scope_temp">Sementara</string>
+    <string name="memory_deleted">Entri memori dihapus</string>
+
+    <string name="perm_add_rule">Tambah aturan domain</string>
+    <string name="perm_domain_hint">example.com</string>
+    <string name="perm_read">Baca</string>
+    <string name="perm_navigate">Navigasi</string>
+    <string name="perm_fill_forms">Isi form</string>
+    <string name="perm_submit">Kirim</string>
+    <string name="perm_download">Unduh</string>
+    <string name="perm_upload">Unggah</string>
+    <string name="perm_saved">Aturan disimpan</string>
+
+    <string name="policy_auto">Otomatis (risiko rendah berjalan sendiri)</string>
+    <string name="policy_approve_submit">Setujui kirim &amp; unduh</string>
+    <string name="policy_approve_all">Setujui semuanya</string>
+
+    <string name="providers_title">Penyedia AI</string>
+    <string name="providers_add">Tambah penyedia</string>
+    <string name="providers_edit">Edit penyedia</string>
+    <string name="providers_name">Nama</string>
+    <string name="providers_type">Jenis</string>
+    <string name="providers_base_url">Base URL</string>
+    <string name="providers_model">Model</string>
+    <string name="providers_api_key">Kunci API</string>
+    <string name="providers_enabled">Aktif</string>
+    <string name="providers_key_hint_new">Kunci disimpan terenkripsi hanya di perangkat ini</string>
+    <string name="providers_key_hint_edit">Biarkan kosong untuk mempertahankan kunci tersimpan</string>
+    <string name="providers_key_saved">Kunci tersimpan terenkripsi</string>
+    <string name="providers_role_mapping">Model per peran</string>
+    <string name="providers_role_hint">Planner merencanakan, Action mengeksekusi, Vision membaca tangkapan layar, Summarization meringkas, Background mengerjakan tugas senyap.</string>
+    <string name="providers_test">Uji</string>
+    <string name="providers_testing">Menguji…</string>
+    <string name="providers_test_ok">Penyedia menjawab — koneksi OK</string>
+    <string name="providers_test_failed">Uji penyedia gagal: %1$s</string>
+    <string name="providers_empty">Belum ada penyedia dikonfigurasi. Motion AI butuh satu untuk berpikir.</string>
+    <string name="providers_delete_title">Hapus penyedia</string>
+    <string name="providers_delete_text">Hapus penyedia ini beserta kuncinya?</string>
+    <string name="type_openai_compatible">OpenAI-compatible</string>
+    <string name="type_anthropic">Anthropic</string>
+    <string name="type_gemini">Google Gemini</string>
+    <string name="type_openrouter">OpenRouter</string>
+    <string name="type_ollama">Ollama (lokal)</string>
+    <string name="type_custom">Endpoint kustom</string>
+    <string name="role_planner">Perencana</string>
+    <string name="role_action">Aksi</string>
+    <string name="role_vision">Visi</string>
+    <string name="role_summarization">Peringkas</string>
+    <string name="role_background">Latar belakang</string>
 </resources>

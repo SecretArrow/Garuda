@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000002 Mon Sep 17 00:00:00 2001
+From: Motion Browser Fork Maintainers <motion@users.noreply.github.com>
+Date: Fri, 21 Feb 2025 10:10:00 +0000
+Subject: [PATCH 0003] motion: newtab — Motion default new tab page
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Purpose
+=======
+Point the default new tab page at the Motion NTP host,
+`chrome://motion-newtab/`, and add the `MOTION_NTP_URL` constant for
+Motion-side code.
+
+Dependency note: the chrome://motion-newtab host is registered by the Motion
+tree (motion/java/src/com/motion/chromium/MotionAgentBridge.java registers the
+Motion NTP provider during browser startup; patch 0004 performs the
+registration hook). Until the full Motion NTP lands, this URL renders the
+fork's placeholder page; NTP_NATIVE_URL still exposes the native NTP.
+
+Rebase notes
+============
+- UrlConstants.java has historically lived at
+  chrome/android/java/src/org/chromium/chrome/browser/UrlConstants.java, but
+  URL constants migrate (some were moved toward components/ntp_tiles or
+  chrome/browser/ui/android). If the anchor is gone, find the constant the
+  chrome_public_apk NTP path uses at the rebased revision and mirror this
+  change there.
+- Keep NTP_NATIVE_URL untouched: it is the escape hatch while the Motion NTP
+  is under construction.
+
+Honesty note (spec §77)
+=======================
+Authored against the upstream file layout as documented for 130.0.6723.58.
+NOT verified against a real Chromium checkout — rebase expected.
+---
+ .../org/chromium/chrome/browser/UrlConstants.java              |  8 ++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/UrlConstants.java b/chrome/android/java/src/org/chromium/chrome/browser/UrlConstants.java
+index 4c5d6e7f..9a0b1c2d 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/UrlConstants.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/UrlConstants.java
+@@ -8,6 +8,10 @@
+ 
+ public class UrlConstants {
+-    // Canonical URL for the new tab page.
+-    public static final String NTP_URL = "chrome://newtab/";
++    // Motion (0003): default new tab page. chrome://motion-newtab/ is served
++    // by the Motion NTP provider registered at browser startup (patch 0004 +
++    // motion/java/src/com/motion/chromium/MotionAgentBridge.java). The native
++    // NTP remains available via NTP_NATIVE_URL until Motion NTP lands.
++    public static final String NTP_URL = "chrome://motion-newtab/";
++    public static final String MOTION_NTP_URL = "chrome://motion-newtab/";
+     public static final String NTP_NATIVE_URL = "chrome-native://newtab/";
+     public static final String BOOKMARKS_URL = "chrome://bookmarks/";
+-- 
+2.39.5
+

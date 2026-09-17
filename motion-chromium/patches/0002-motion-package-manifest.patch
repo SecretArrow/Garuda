@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000001 Mon Sep 17 00:00:00 2001
+From: Motion Browser Fork Maintainers <motion@users.noreply.github.com>
+Date: Fri, 21 Feb 2025 10:05:00 +0000
+Subject: [PATCH 0002] motion: package — fork manifest package fallback
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Purpose
+=======
+Give Motion builds the fork applicationId `com.motion.browser.chromium`.
+
+The PREFERRED mechanism is the build arg (already present in the canonical
+template motion/gn/args.gn, see docs/BUILD_CHROMIUM.md §6):
+
+    chrome_public_manifest_package = "com.motion.browser.chromium"
+
+This patch documents that path inside the build file and provides a fallback
+default so a plain Motion build without a hand-written args.gn still lands on
+the fork package. The declare_args() guard means the value is only filled
+when the global arg is unset.
+
+Rebase notes
+============
+- The applicationId override path in GN is `chrome_public_manifest_package`
+  (consumed by the chrome_public_apk manifest packaging step). If upstream
+  renames or re-homes this arg, port the arg name here and in args.gn —
+  never drop the Motion package identity.
+- Insertion point is the top of chrome/android/BUILD.gn, right after the
+  license header; a drift in surrounding imports is expected and harmless
+  (apply_patches.sh tolerates offset context).
+
+Honesty note (spec §77)
+=======================
+Authored against the upstream file layout as documented for 130.0.6723.58.
+NOT verified against a real Chromium checkout — rebase expected.
+---
+ chrome/android/BUILD.gn | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/chrome/android/BUILD.gn b/chrome/android/BUILD.gn
+index 2b7c8d9e..0f1e2d3c 100644
+--- a/chrome/android/BUILD.gn
++++ b/chrome/android/BUILD.gn
+@@ -1,5 +1,17 @@
+ # Copyright 2014 The Chromium Authors
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
++# Motion (0002): fork package identity.
++# Preferred mechanism: set the same arg in args.gn (see motion/gn/args.gn):
++#   chrome_public_manifest_package = "com.motion.browser.chromium"
++# This block only fills the value when the global arg is unset, so plain
++# Motion builds get the fork applicationId without extra configuration.
++declare_args() {
++  motion_use_fork_package = true
++}
++if (motion_use_fork_package && !defined(chrome_public_manifest_package)) {
++  chrome_public_manifest_package = "com.motion.browser.chromium"
++}
++
+ import("//build/config/android/config.gni")
+-- 
+2.39.5
+

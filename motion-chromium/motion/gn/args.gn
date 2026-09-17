@@ -1,0 +1,33 @@
+# Motion Browser — Chromium build arguments (canonical template).
+# Consumed by tools/gn_gen_android.sh, which copies this file into the
+# checkout out-dir args.gn, substituting TARGET_CPU.
+# Full reference: motion-chromium/docs/BUILD_CHROMIUM.md §6.
+# NOTE: these args set build IDENTITY, not security posture — no arg here
+# weakens Chromium hardening (spec §6).
+
+# --- Platform target --------------------------------------------------------
+target_os = "android"
+target_cpu = "arm64"                 # substituted by gn_gen_android.sh
+                                     # (arm64 | arm | x86 | x64)
+
+# --- Build profile ----------------------------------------------------------
+is_official_build = false            # no Google API keys / Google branding;
+                                     # sign-in & some Google services unavailable (expected)
+is_debug = false                     # release-speed build
+symbol_level = 1                     # line tables only — manageable link RAM + stack traces
+v8_symbol_level = 0
+is_component_build = false           # component builds unsupported on Android
+
+# --- Motion identity (patch 0002 mirrors this default as a fallback) --------
+chrome_public_manifest_package = "com.motion.browser.chromium"
+
+# --- Trim what we do not need -----------------------------------------------
+enable_nacl = false
+ffmpeg_branding = "Chrome"
+proprietary_codecs = true            # match Chrome media support — review codec
+                                     # licensing before public distribution
+android_channel = "default"
+
+# --- Optional knobs (documented in docs/BUILD_CHROMIUM.md) -------------------
+# use_remoteexec = false              # enable only with your own Reclient/RE backend
+# ccache: export CCACHE_DIR + `ccache` on PATH; GN picks it up via clang wrapper.

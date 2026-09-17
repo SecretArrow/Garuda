@@ -1,0 +1,55 @@
+# Copyright 2025 The Motion Browser Authors.
+# Motion-specific fork code (Track B). Chromium upstream code remains under its
+# BSD-style license; this tree is separate Motion Browser project work.
+#
+# motion/ build file — lives at //motion inside a Chromium checkout.
+# See motion-chromium/docs/BUILD_CHROMIUM.md for the full build flow and
+# motion-chromium/docs/UPSTREAM_STRATEGY.md for the patch-series policy.
+#
+# Dep direction (isolation rule): chrome_java depends on //motion:motion_java
+# (patch 0004). This file must NOT depend on chrome_java.
+
+import("//build/config/android/rules.gni")
+
+android_library("motion_java") {
+  sources = glob([
+    "java/src/com/motion/chromium/*.java",
+  ])
+
+  deps = [
+    # Core Chromium support: logging, threading, JNI annotations, feature plumbing.
+    "//base:base_java",
+    # WebContents + WebContentsObserver (content_public) used by MotionTabObserver.
+    "//content/public/android:content_java",
+    # @Nullable / @MainThread style annotations.
+    "//third_party/androidx:androidx_annotation_annotation_java",
+    # UI-thread utilities and future Motion NTP scaffolding.
+    "//ui/android:ui_java",
+    # GURL handling for URL normalization before dispatch.
+    "//url:gurl_java",
+  ]
+
+  # jni_zero annotation processor: generates MotionAgentBridgeJni from the
+  # @NativeMethods interface in MotionAgentBridge.java.
+  # TODO(rebase): the annotation processor target name drifts between
+  # revisions ("//base:jni_zero" in some revs, "//base/jni_zero:jni_zero" in
+  # others; newer revs migrate annotations to org.jni_zero.*). Verify at rebase.
+  annotation_processor_deps = [ "//base/jni_zero:jni_zero" ]
+}
+
+# Convenience group; the patched chrome side (0004) depends on //motion:motion_java.
+group("motion") {
+  public_deps = [ ":motion_java" ]
+}
+
+# Planned targets (added during the first native rebase, see
+# docs/UPSTREAM_STRATEGY.md §4 — native code belongs in this tree, not upstream):
+#
+#   static_library("motion_native") {
+#     sources = [ "browser/bridge/motion_agent_bridge.cc" ]  # content::WebContentsObserver impl
+#     deps = [ "//base", "//content/public/browser", "//ui/accessibility" ]
+#   }
+#
+#   android_resources("motion_resources") {
+#     # Motion NTP page, agent status strings (motion/ui/)
+#   }
