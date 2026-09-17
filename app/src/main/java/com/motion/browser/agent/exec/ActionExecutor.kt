@@ -63,7 +63,15 @@ class ActionExecutor(
                 }
             }
 
-            val context = ToolContext(tabId = tabId, runId = runId, goalId = goalId)
+            // Real enforcement of the goal's confirmation policy (spec §25):
+            // APPROVE_ALL → every action needs the user; APPROVE_SUBMIT/AUTO rely on
+            // the SafetyGuard + PermissionManager defaults (submit/download = approval).
+            val mode = if (goal?.confirmationPolicy.equals("APPROVE_ALL", ignoreCase = true)) {
+                ToolContext.MODE_COPILOT
+            } else {
+                ToolContext.MODE_AUTONOMOUS
+            }
+            val context = ToolContext(tabId = tabId, runId = runId, goalId = goalId, mode = mode)
             val result: ToolResult = runCatching {
                 registry.execute(planStep.tool, planStep.argsJson, context)
             }.getOrElse { t ->

@@ -123,7 +123,7 @@ fun GoalEditorScreen(goalId: String?, onBack: () -> Unit) {
                 editing = true
                 name = loaded.name
                 instruction = loaded.instruction
-                domains = loaded.allowedDomains
+                domains = loaded.allowedDomains.joinToString(", ")
                 policy = loaded.confirmationPolicy
                 maxSteps = loaded.maxSteps.toFloat()
                 notify = !loaded.notificationPolicy.equals("OFF", ignoreCase = true)
@@ -187,10 +187,10 @@ fun GoalEditorScreen(goalId: String?, onBack: () -> Unit) {
             instruction = instruction.trim(),
             enabled = true,
             scheduleJson = scheduleJson,
-            allowedDomains = domains.trim(),
-            blockedDomains = base?.blockedDomains ?: "",
-            allowedActions = base?.allowedActions ?: "",
-            blockedActions = base?.blockedActions ?: "",
+            allowedDomains = domains.split(",").map { it.trim() }.filter { it.isNotBlank() },
+            blockedDomains = base?.blockedDomains ?: emptyList(),
+            allowedActions = base?.allowedActions ?: emptyList(),
+            blockedActions = base?.blockedActions ?: emptyList(),
             confirmationPolicy = policy,
             notificationPolicy = if (notify) "ON" else "OFF",
             memoryPolicy = base?.memoryPolicy ?: "GLOBAL",
@@ -606,7 +606,8 @@ private fun dayNames(days: List<Int>?): String {
         7 to R.string.weekday_sun,
     )
     val selected = days?.filter { it in 1..7 }.orEmpty()
-    return all.filter { it.first in selected }.joinToString(", ") { stringResource(it.second) }
+    val resolved = all.map { it.first to stringResource(it.second) }
+    return resolved.filter { it.first in selected }.joinToString(", ") { it.second }
         .ifBlank { stringResource(R.string.schedule_weekly) }
 }
 

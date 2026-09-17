@@ -452,7 +452,7 @@ fun ControlCenterScreen(onBack: () -> Unit) {
             onSave = { rule ->
                 showPermissionDialog = false
                 scope.launch {
-                    runCatching { permissionDao.insert(rule) }
+                    runCatching { permissionDao.upsert(rule) }
                     snackbar.showSnackbar(context.getString(R.string.perm_saved))
                 }
             },
@@ -542,7 +542,7 @@ private fun GoalRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        if (goal.nextRun > 0) stringResource(R.string.goal_next_run, formatTimestamp(goal.nextRun))
+                        if ((goal.nextRun ?: 0L) > 0) stringResource(R.string.goal_next_run, formatTimestamp(goal.nextRun ?: 0L))
                         else stringResource(R.string.goal_not_scheduled),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -600,7 +600,7 @@ private fun TriggerRow(trigger: TriggerEntity, goalName: String?) {
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (trigger.lastFired > 0) stringResource(R.string.trigger_last_fired, formatTimestamp(trigger.lastFired))
+                    if ((trigger.lastFired ?: 0L) > 0) stringResource(R.string.trigger_last_fired, formatTimestamp(trigger.lastFired ?: 0L))
                     else stringResource(R.string.trigger_never_fired),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

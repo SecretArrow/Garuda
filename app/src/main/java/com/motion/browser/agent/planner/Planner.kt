@@ -252,7 +252,7 @@ class Planner(private val ai: ProviderManager, private val audit: AuditLogger) {
                         put("id", element.id)
                         put("role", element.role)
                         put("text", safeSanitize(element.text).take(120))
-                        put("ariaLabel", element.ariaLabel?.let { safeSanitize(it).take(120) } ?: JsonNull)
+                        put("ariaLabel", element.ariaLabel?.let { JsonPrimitive(safeSanitize(it).take(120)) } ?: JsonNull)
                         put("visible", element.visible)
                         put("enabled", element.enabled)
                         put(

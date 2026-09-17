@@ -85,7 +85,6 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          emulator-build: 11076708
           script: |
             ./gradlew :app:connectedDebugAndroidTest --parallel --stacktrace
             echo "--- FATAL EXCEPTION check ---"

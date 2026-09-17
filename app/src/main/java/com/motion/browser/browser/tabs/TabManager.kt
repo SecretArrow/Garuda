@@ -197,9 +197,9 @@ class TabManager(private val activity: Context) {
     /** The hostable container for the tab (touch-detecting wrapper). */
     fun getContainerView(id: String): View? = holders[id]?.container
 
-    fun engineFor(id: String): WebViewEngine? = holders[id]?.engine
+    internal fun engineFor(id: String): WebViewEngine? = holders[id]?.engine
 
-    fun engineForActive(): WebViewEngine? = _activeTabId.value?.let { holders[it]?.engine }
+    internal fun engineForActive(): WebViewEngine? = _activeTabId.value?.let { holders[it]?.engine }
 
     val openCount: Int get() = _tabs.value.size
 

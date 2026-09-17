@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -473,6 +475,7 @@ private fun ProviderDialog(
         confirmButton = {
             TextButton(onClick = {
                 val base = initial
+                val fallbackName = typeLabel(type)
                 val config = (base ?: ProviderConfig(
                     id = UUID.randomUUID().toString(),
                     type = type,
@@ -483,7 +486,7 @@ private fun ProviderDialog(
                     keyId = "key_" + UUID.randomUUID().toString(),
                 )).copy(
                     type = type,
-                    name = name.trim().ifBlank { typeLabel(type) },
+                    name = name.trim().ifBlank { fallbackName },
                     baseUrl = baseUrl.trim(),
                     model = model.trim(),
                     enabled = enabled,

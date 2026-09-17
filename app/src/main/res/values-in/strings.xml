@@ -99,6 +99,8 @@
     <string name="ge_interpret">Tafsirkan</string>
     <string name="ge_interpreting">Menafsirkan…</string>
     <string name="ge_understood">Motion memahami otomatisasimu sebagai:</string>
+    <string name="ge_default_name">Otomatisasi saya</string>
+    <string name="ge_edit">Edit</string>
     <string name="ge_planner_unavailable">Perencana belum siap (belum ada penyedia AI). Kamu tetap bisa mengisi formulir secara manual.</string>
     <string name="ge_draft_name">Nama</string>
     <string name="ge_draft_schedule">Jadwal</string>

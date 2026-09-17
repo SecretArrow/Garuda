@@ -24,6 +24,7 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -79,7 +80,7 @@ class TriggerManager(
 
     /** Create (or reuse) the TriggerEntity for this goal+kind and make sure it is enabled. */
     private suspend fun upsertTrigger(goal: GoalEntity, kind: String): TriggerEntity {
-        val existing = triggerDao.byGoal(goal.id).firstOrNull { it.type.equals(kind, ignoreCase = true) }
+        val existing = triggerDao.forGoal(goal.id).firstOrNull { it.type.equals(kind, ignoreCase = true) }
         val entity = if (existing != null) {
             existing.copy(scheduleJson = goal.scheduleJson, enabled = true)
         } else {
@@ -92,7 +93,7 @@ class TriggerManager(
                 lastFired = 0L // sentinel: never fired
             )
         }
-        triggerDao.upsert(entity)
+        triggerDao.insert(entity)
         return entity
     }
 
@@ -194,7 +195,7 @@ class TriggerManager(
     /** Cancel all scheduled work for a goal and disable its trigger rows. */
     suspend fun cancelForGoal(goalId: String) {
         runCatching { wm().cancelAllWorkByTag(workTag(goalId)) }
-        triggerDao.byGoal(goalId).forEach { trigger ->
+        for (trigger in triggerDao.forGoal(goalId)) {
             if (trigger.enabled) {
                 triggerDao.update(trigger.copy(enabled = false))
             }
@@ -209,7 +210,8 @@ class TriggerManager(
     fun rescheduleAll() {
         scope.launch {
             runCatching {
-                goalDao.enabled().forEach { goal ->
+                val enabledGoals = goalDao.enabled().first()
+                for (goal in enabledGoals) {
                     if (goal.scheduleJson.isNotBlank()) {
                         runCatching { scheduleForGoal(goal) }.onFailure {
                             log("ERROR", "rescheduleAll failed for goal ${goal.id}", it.message)

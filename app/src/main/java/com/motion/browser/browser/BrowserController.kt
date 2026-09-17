@@ -49,6 +49,8 @@ class BrowserController(private val tabs: TabManager) {
 
     // ------------------------------------------------------------------ navigation
 
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
     suspend fun openUrl(url: String, newTab: Boolean = false, waitForLoad: Boolean = true): Boolean {
         val target = normalizeUrl(url) ?: return false
         return withContext(Dispatchers.Main) {

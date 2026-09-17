@@ -302,9 +302,11 @@ private fun AiPanelContent() {
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             QUICK_ACTIONS.forEach { action ->
+                val instruction = stringResource(action.instructionRes)
+                val label = stringResource(action.labelRes)
                 AssistChip(
-                    onClick = { send(stringResource(action.instructionRes)) },
-                    label = { Text(stringResource(action.labelRes)) },
+                    onClick = { send(instruction) },
+                    label = { Text(label) },
                 )
             }
         }

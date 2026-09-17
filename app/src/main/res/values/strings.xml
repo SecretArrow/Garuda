@@ -105,6 +105,8 @@
     <string name="ge_interpret">Interpret</string>
     <string name="ge_interpreting">Interpreting…</string>
     <string name="ge_understood">Motion understood your automation as:</string>
+    <string name="ge_default_name">My automation</string>
+    <string name="ge_edit">Edit</string>
     <string name="ge_planner_unavailable">Planner is not ready yet (no AI provider configured). You can still fill the form manually.</string>
     <string name="ge_draft_name">Name</string>
     <string name="ge_draft_schedule">Schedule</string>

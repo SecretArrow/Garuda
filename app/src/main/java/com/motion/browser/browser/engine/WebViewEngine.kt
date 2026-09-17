@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -78,12 +79,12 @@ internal class WebViewEngine(
     // ------------------------------------------------------------------ creation
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun ensureCreated(): View {
+    override fun ensureCreated(): View {
         if (destroyed) throw IllegalStateException("engine destroyed: $tabId")
         webView?.let { return it }
         val wv = WebView(activityContext)
-        wv.layoutParams = View.LayoutParams(
-            View.LayoutParams.MATCH_PARENT, View.LayoutParams.MATCH_PARENT
+        wv.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         )
         wv.settings.apply {
             javaScriptEnabled = true
@@ -148,7 +149,7 @@ internal class WebViewEngine(
             _events.tryEmit(EngineEvent.LoadError(request.url.toString(), error.errorCode, error.description?.toString(), main))
         }
 
-        override fun onRenderProcessGone(view: WebView, detail: android.webkit.WebRenderProcessGoneDetail): Boolean {
+        override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
             // Spec §40: renderer crash recovery — destroy the dead view, expose the event.
             // Returning true tells the system the app handled it (the app must not crash).
             if (view === webView) {
@@ -323,7 +324,7 @@ internal class WebViewEngine(
 
     // ------------------------------------------------------------------ helpers
 
-    private inline fun withView(block: (WebView) -> Unit) {
+    private fun withView(block: (WebView) -> Unit) {
         val wv = webView ?: return
         if (destroyed) return
         wv.post { if (!destroyed) runCatching { block(wv) } }
