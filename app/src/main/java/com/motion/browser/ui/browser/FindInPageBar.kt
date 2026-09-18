@@ -7,8 +7,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowDown
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -99,7 +99,7 @@ fun FindInPageBar(
                     if (matchCount > 0) activeOrdinal = if (activeOrdinal <= 1) matchCount else activeOrdinal - 1
                 },
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowUp, contentDescription = "Previous match")
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Previous match")
             }
             IconButton(
                 enabled = matchCount > 0,
@@ -108,7 +108,7 @@ fun FindInPageBar(
                     if (matchCount > 0) activeOrdinal = if (activeOrdinal >= matchCount) 1 else activeOrdinal + 1
                 },
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowDown, contentDescription = "Next match")
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Next match")
             }
             IconButton(onClick = {
                 manager.engineForActive()?.clearFind()

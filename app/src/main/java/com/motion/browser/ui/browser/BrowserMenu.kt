@@ -92,9 +92,9 @@ fun BrowserMenu(
     LaunchedEffect(active?.url) {
         val url = active?.url
         bookmarked = if (url != null && url.startsWith("http")) {
-            runCatching { controller?.isBookmarked(url) }.getOrDefault(false)
+            runCatching { controller?.isBookmarked(url) ?: false }.getOrDefault(false)
         } else false
-        desktop = runCatching { manager.desktopSiteEnabled(activeId ?: "") }.getOrDefault(false)
+        desktop = runCatching { manager.desktopSiteEnabled(activeId ?: "") }.getOrDefault(false).let { it }
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -135,8 +135,8 @@ fun BrowserMenu(
             ) {
                 val url = active?.url ?: return@MenuRow
                 scope.launch {
-                    runCatching { controller?.toggleBookmark(active.title.ifBlank { url }, url) }
-                    bookmarked = runCatching { controller?.isBookmarked(url) }.getOrDefault(false)
+                    runCatching { controller?.toggleBookmark(active?.title?.ifBlank { url } ?: url, url) }
+                    bookmarked = runCatching { controller?.isBookmarked(url) ?: false }.getOrDefault(false)
                 }
             }
             MenuRow(Icons.Filled.Share, "Share", enabled = active?.url?.startsWith("http") == true) {
@@ -168,14 +168,14 @@ fun BrowserMenu(
             }
             MenuRow(Icons.Filled.AddToHomeScreen, "Add to home screen", enabled = canBookmark) {
                 onDismiss()
-                runCatching { addToHomeScreen(context, active?.url ?: "", active.title.ifBlank { "Motion" }) }
+                runCatching { addToHomeScreen(context, active?.url ?: "", active?.title?.ifBlank { "Motion" } ?: "Motion") }
             }
             MenuRow(Icons.Filled.Print, "Print", enabled = canBookmark) {
                 onDismiss()
                 runCatching {
                     val wv = manager.getWebView(activeId ?: "") ?: return@MenuRow
                     val pm = context.getSystemService(android.print.PrintManager::class.java)
-                    pm.print(active.title.ifBlank { "Motion page" }, wv.createPrintDocumentAdapter("motion-doc"), null)
+                    pm.print(active?.title?.ifBlank { "Motion page" } ?: "Motion page", wv.createPrintDocumentAdapter("motion-doc"), null)
                 }
             }
             MenuRow(Icons.Filled.Save, "Save page (MHTML)", enabled = canBookmark) {
@@ -185,7 +185,7 @@ fun BrowserMenu(
                     wv.saveWebArchive(
                         java.io.File(
                             context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS),
-                            (active.title.ifBlank { "page" }).replace(Regex("[^A-Za-z0-9_. -]"), "").take(60) + ".mht"
+                            (active?.title?.ifBlank { "page" } ?: "page").replace(Regex("[^A-Za-z0-9_. -]"), "").take(60) + ".mht"
                         ).absolutePath
                     )
                 }
