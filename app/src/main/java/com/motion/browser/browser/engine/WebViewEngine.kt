@@ -131,8 +131,8 @@ internal class WebViewEngine(
             ShieldsEngine.recordBlock(url)
             _events.tryEmit(EngineEvent.RequestBlocked(url))
             return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0))).apply {
-                statusCode = 403
-                reasonPhrase = "Blocked by Shields"
+                // WebResourceResponse exposes ONLY the combined setter (no setStatusCode alone).
+                setStatusCodeAndReasonPhrase(403, "Blocked by Shields")
             }
         }
 
