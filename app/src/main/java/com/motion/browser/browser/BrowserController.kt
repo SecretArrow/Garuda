@@ -333,7 +333,7 @@ class BrowserController(private val tabs: TabManager) {
         val dao = com.motion.browser.ServiceLocator.database.memoryDao()
         val now = System.currentTimeMillis()
         runCatching {
-            ServiceLocator.database.historyDao().upsert(
+            com.motion.browser.ServiceLocator.database.historyDao().upsert(
                 com.motion.browser.data.entity.HistoryEntity(
                     id = stableId("HISTORY_ROW:$url"), url = url,
                     title = title.ifBlank { url }, visitedAt = now, visitCount = 1, isPrivate = false

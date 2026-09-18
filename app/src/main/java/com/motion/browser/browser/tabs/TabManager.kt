@@ -180,6 +180,7 @@ class TabManager(private val activity: Context) {
                         pendingLoad[newId] = event.url
                     }
                     is EngineEvent.RequestBlocked -> Unit // stats already recorded in ShieldsEngine
+                    is EngineEvent.FullscreenChanged -> Unit // rendered by BrowserScreen via CustomViewHost
                     is EngineEvent.DownloadRequested -> runCatching {
                         downloads.enqueue(
                             url = event.url,

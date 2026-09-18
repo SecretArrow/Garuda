@@ -257,20 +257,22 @@ internal class WebViewEngine(
         // ---- Camera / microphone consent (web APIs) gated by site settings + app grants
         override fun onPermissionRequest(request: PermissionRequest?) {
             val req = request ?: return
-            req.request.origin?.let { origin ->
-                val granted = req.resources.mapNotNull { resource ->
-                    when (resource) {
-                        PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
-                            resource.takeIf { siteAllows("camera") && hasAppPermission(Manifest.permission.CAMERA) }
-                        PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
-                            resource.takeIf { siteAllows("microphone") && hasAppPermission(Manifest.permission.RECORD_AUDIO) }
-                        else -> null
-                    }
-                }.toTypedArray()
-                mainHandlerSafe.post {
-                    runCatching { if (granted.isEmpty()) req.deny() else req.grant(granted) }
+            if (req.origin == null) {
+                mainHandlerSafe.post { runCatching { req.deny() } }
+                return
+            }
+            val granted = req.resources.mapNotNull { resource ->
+                when (resource) {
+                    PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                        resource.takeIf { siteAllows("camera") && hasAppPermission(Manifest.permission.CAMERA) }
+                    PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                        resource.takeIf { siteAllows("microphone") && hasAppPermission(Manifest.permission.RECORD_AUDIO) }
+                    else -> null
                 }
-            } ?: mainHandlerSafe.post { runCatching { req.deny() } }
+            }.toTypedArray()
+            mainHandlerSafe.post {
+                runCatching { if (granted.isEmpty()) req.deny() else req.grant(granted) }
+            }
         }
 
         // ---- Geolocation consent
