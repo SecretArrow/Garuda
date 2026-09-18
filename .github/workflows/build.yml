@@ -89,6 +89,7 @@ jobs:
           disable-animations: true
           script: |
             ./gradlew :app:connectedDebugAndroidTest --parallel --stacktrace
+            adb logcat -d | grep "AUTONOMOUS_E2E" || echo "AUTONOMOUS_E2E marker not found in logcat"
             adb logcat -d | grep -q "FATAL EXCEPTION" && { adb logcat -d | grep -A 30 "FATAL EXCEPTION" | head -120; echo "FATAL EXCEPTION detected in logcat"; exit 1; } || echo "No FATAL EXCEPTION in logcat — app installed and ran cleanly"
 
       - name: Upload instrumented logs on failure
