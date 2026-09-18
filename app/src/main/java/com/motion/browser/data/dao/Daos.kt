@@ -253,6 +253,7 @@ interface ApprovalDao {
 // Browser data DAOs (v2): bookmarks, history, downloads, AI chat.
 // ============================================================================
 
+@Dao
 interface BookmarkDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(bookmark: BookmarkEntity)
@@ -285,6 +286,7 @@ interface BookmarkDao {
     suspend fun clear()
 }
 
+@Dao
 interface HistoryDao {
     /** Stable id = hash(url): re-visits refresh visitedAt/title and bump visitCount. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -315,6 +317,7 @@ interface HistoryDao {
     suspend fun count(): Int
 }
 
+@Dao
 interface DownloadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(download: DownloadEntity)
@@ -335,6 +338,7 @@ interface DownloadDao {
     suspend fun deleteByStatus(status: String): Int
 }
 
+@Dao
 interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSession(session: ChatSessionEntity)
