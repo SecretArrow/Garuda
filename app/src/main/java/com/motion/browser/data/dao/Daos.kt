@@ -7,7 +7,12 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.motion.browser.data.entity.ApprovalEntity
+import com.motion.browser.data.entity.BookmarkEntity
+import com.motion.browser.data.entity.ChatMessageEntity
+import com.motion.browser.data.entity.ChatSessionEntity
+import com.motion.browser.data.entity.DownloadEntity
 import com.motion.browser.data.entity.EventEntity
+import com.motion.browser.data.entity.HistoryEntity
 import com.motion.browser.data.entity.GoalEntity
 import com.motion.browser.data.entity.MemoryEntity
 import com.motion.browser.data.entity.PermissionEntity

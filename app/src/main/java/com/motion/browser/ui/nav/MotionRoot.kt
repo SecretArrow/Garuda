@@ -23,6 +23,8 @@ import com.motion.browser.ui.control.ProvidersScreen
 import com.motion.browser.ui.data.BookmarksScreen
 import com.motion.browser.ui.data.DownloadsScreen
 import com.motion.browser.ui.data.HistoryScreen
+import com.motion.browser.ui.chat.ChatIntake
+import com.motion.browser.ui.chat.ChatScreen
 import com.motion.browser.ui.settings.SettingsScreen
 import com.motion.browser.ui.theme.MotionTheme
 import com.motion.browser.ui.theme.SystemBarAppearanceEffect
@@ -38,6 +40,7 @@ sealed class Screen {
     data object Bookmarks : Screen()
     data object History : Screen()
     data object Downloads : Screen()
+    data object AiChat : Screen()
 }
 
 /**
@@ -69,7 +72,6 @@ fun MotionRoot(onDeepLinkUrl: String? = null) {
             color = MaterialTheme.colorScheme.background,
         ) {
             var screen by remember { mutableStateOf<Screen>(Screen.Browser) }
-            var showAiPanel by remember { mutableStateOf(false) }
             var pendingDeepLink by remember { mutableStateOf(onDeepLinkUrl) }
 
             // Deep link: open once when the browser surface is ready.
@@ -84,7 +86,7 @@ fun MotionRoot(onDeepLinkUrl: String? = null) {
             when (val current = screen) {
                 Screen.Browser -> BrowserScreen(
                     onOpenControl = { screen = Screen.ControlCenter },
-                    onOpenAi = { showAiPanel = true },
+                    onOpenAi = { screen = Screen.AiChat },
                     onOpenTabSwitcher = { /* handled inside BrowserScreen now */ },
                     onOpenSettings = { screen = Screen.Settings },
                     onOpenBookmarks = { screen = Screen.Bookmarks },
@@ -116,16 +118,17 @@ fun MotionRoot(onDeepLinkUrl: String? = null) {
                     }
                 )
                 Screen.Downloads -> DownloadsScreen(onBack = { screen = Screen.Browser })
+                Screen.AiChat -> ChatScreen(
+                    onBack = { screen = Screen.Browser },
+                    onOpenLink = { url ->
+                        com.motion.browser.ServiceLocator.browser?.openUrl(url)
+                        screen = Screen.Browser
+                    },
+                    initialText = ChatIntake.consume(),
+                )
             }
 
-            // AI panel overlays every screen (spec §52/§73: Ask Motion anywhere).
-            if (showAiPanel) {
-                Box(Modifier.fillMaxSize()) {
-                    AiPanel(onDismiss = { showAiPanel = false })
-                }
-            }
-
-            BackHandler(enabled = screen != Screen.Browser || showAiPanel) {
+            BackHandler(enabled = screen != Screen.Browser) {
                 when {
                     showAiPanel -> showAiPanel = false
                     screen != Screen.Browser -> screen = Screen.Browser

@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
 
         val deepLinkUrl = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString
+        consumeShareOrProcessText(intent)
         setContent {
             MotionRoot(onDeepLinkUrl = deepLinkUrl)
         }
@@ -41,9 +42,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        consumeShareOrProcessText(intent)
         val url = intent.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
         lifecycleScope.launch {
             runCatching { ServiceLocator.requireBrowser().openUrl(url) }
+        }
+    }
+
+    /** Share-to-AI (ACTION_SEND) and selection → Ask AI (ACTION_PROCESS_TEXT). */
+    private fun consumeShareOrProcessText(intent: Intent?) {
+        intent ?: return
+        val text = when (intent.action) {
+            Intent.ACTION_SEND ->
+                intent.getStringExtra(Intent.EXTRA_TEXT)
+                    ?: intent.getStringExtra(Intent.EXTRA_SUBJECT)
+            android.content.Intent.ACTION_PROCESS_TEXT ->
+                intent.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString()
+            else -> null
+        }
+        if (!text.isNullOrBlank()) {
+            com.motion.browser.ui.chat.ChatIntake.pendingText = text
         }
     }
 
