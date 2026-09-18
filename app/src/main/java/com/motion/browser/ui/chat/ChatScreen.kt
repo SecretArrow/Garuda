@@ -1,6 +1,9 @@
 package com.motion.browser.ui.chat
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
@@ -164,12 +167,14 @@ fun ChatScreen(
             editMessageId = null
         }
         generating = true
-        val pageCtx = if (usePageContext) {
-            runCatching { ServiceLocator.browser?.observePage() }.getOrNull()
-        } else null
-        repo.generate(sessionId, text, pageCtx) { err ->
-            generating = false
-            errorText = err
+        scope.launch {
+            val pageCtx = if (usePageContext) {
+                runCatching { ServiceLocator.browser?.observePage() }.getOrNull()
+            } else null
+            repo.generate(sessionId, text, pageCtx) { err ->
+                generating = false
+                errorText = err
+            }
         }
     }
 
@@ -266,12 +271,14 @@ fun ChatScreen(
                                     val lastUser = messages.lastOrNull { it.role == "user" }
                                     if (lastUser != null) {
                                         generating = true
-                                        val pageCtx = if (usePageContext) {
-                                            runCatching { ServiceLocator.browser?.observePage() }.getOrNull()
-                                        } else null
-                                        repo.generate(sessionId, lastUser.content, pageCtx) { err ->
-                                            generating = false
-                                            errorText = err
+                                        scope.launch {
+                                            val pageCtx = if (usePageContext) {
+                                                runCatching { ServiceLocator.browser?.observePage() }.getOrNull()
+                                            } else null
+                                            repo.generate(sessionId, lastUser.content, pageCtx) { err ->
+                                                generating = false
+                                                errorText = err
+                                            }
                                         }
                                     }
                                 },

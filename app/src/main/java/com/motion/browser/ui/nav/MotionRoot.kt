@@ -27,6 +27,7 @@ import com.motion.browser.ui.chat.ChatIntake
 import com.motion.browser.ui.chat.ChatScreen
 import com.motion.browser.ui.settings.SettingsScreen
 import com.motion.browser.ui.theme.MotionTheme
+import kotlinx.coroutines.launch
 import com.motion.browser.ui.theme.SystemBarAppearanceEffect
 
 /** Simple screen stack (no navigation dependency) — coordinator-owned wiring surface. */
@@ -106,33 +107,36 @@ fun MotionRoot(onDeepLinkUrl: String? = null) {
                 Screen.Bookmarks -> BookmarksScreen(
                     onBack = { screen = Screen.Browser },
                     onOpenUrl = { url ->
-                        com.motion.browser.ServiceLocator.browser?.openUrl(url)
                         screen = Screen.Browser
+                        kotlinx.coroutines.MainScope().launch {
+                            runCatching { com.motion.browser.ServiceLocator.browser?.openUrl(url) }
+                        }
                     }
                 )
                 Screen.History -> HistoryScreen(
                     onBack = { screen = Screen.Browser },
                     onOpenUrl = { url ->
-                        com.motion.browser.ServiceLocator.browser?.openUrl(url)
                         screen = Screen.Browser
+                        kotlinx.coroutines.MainScope().launch {
+                            runCatching { com.motion.browser.ServiceLocator.browser?.openUrl(url) }
+                        }
                     }
                 )
                 Screen.Downloads -> DownloadsScreen(onBack = { screen = Screen.Browser })
                 Screen.AiChat -> ChatScreen(
                     onBack = { screen = Screen.Browser },
                     onOpenLink = { url ->
-                        com.motion.browser.ServiceLocator.browser?.openUrl(url)
                         screen = Screen.Browser
+                        kotlinx.coroutines.MainScope().launch {
+                            runCatching { com.motion.browser.ServiceLocator.browser?.openUrl(url) }
+                        }
                     },
                     initialText = ChatIntake.consume(),
                 )
             }
 
             BackHandler(enabled = screen != Screen.Browser) {
-                when {
-                    showAiPanel -> showAiPanel = false
-                    screen != Screen.Browser -> screen = Screen.Browser
-                }
+                screen = Screen.Browser
             }
         }
     }
