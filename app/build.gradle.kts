@@ -144,6 +144,8 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.6.1")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // On-device scripted LLM server for the AUTONOMOUS agent E2E test
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

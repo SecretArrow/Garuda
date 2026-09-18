@@ -14,10 +14,14 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.motion.browser.browser.NEW_TAB_URL
+import com.motion.browser.shields.ShieldsEngine
+import com.motion.browser.shields.ShieldsState
+import java.io.ByteArrayInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -106,13 +110,32 @@ internal class WebViewEngine(
         }
         wv.webViewClient = client
         wv.webChromeClient = chrome
-        CookieManager.getInstance().setAcceptThirdPartyCookies(wv, !isPrivateTab)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(
+            wv, !isPrivateTab && !ShieldsState.blockThirdPartyCookies.value
+        )
         wv.addJavascriptInterface(Bridge(), "MotionBridge")
         webView = wv
         return wv
     }
 
     private val client = object : WebViewClient() {
+        /**
+         * Shields (anti-tracking): called on an IO thread for every subresource.
+         * Main-frame navigations are NEVER blocked (the user chose to go there);
+         * known tracker/ad hosts on third-party requests get an empty 403 response.
+         */
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            if (!ShieldsState.enabled.value || request.isForMainFrame) return null
+            val url = request.url.toString()
+            if (!ShieldsEngine.shouldBlock(url, _state.value.url)) return null
+            ShieldsEngine.recordBlock(url)
+            _events.tryEmit(EngineEvent.RequestBlocked(url))
+            return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0))).apply {
+                statusCode = 403
+                reasonPhrase = "Blocked by Shields"
+            }
+        }
+
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             loadFailed.set(false)
             lastErrorRef.set(null)

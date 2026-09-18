@@ -39,6 +39,9 @@ sealed class EngineEvent {
 
     /** A new-window request (target=_blank / window.open) resolved to a concrete URL. */
     data class NewWindowRequested(val url: String) : EngineEvent()
+
+    /** Shields blocked a tracker/ad subresource (url = the blocked request). */
+    data class RequestBlocked(val url: String) : EngineEvent()
 }
 
 /**

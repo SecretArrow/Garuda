@@ -162,6 +162,7 @@ class TabManager(private val activity: Context) {
                         val newId = createTab(NEW_TAB_URL, isPrivate = isPrivate(tabId))
                         pendingLoad[newId] = event.url
                     }
+                    is EngineEvent.RequestBlocked -> Unit // stats already recorded in ShieldsEngine
                 }
             }
         }
