@@ -95,8 +95,11 @@ object ShieldsEngine {
     fun recordBlock(url: String) {
         _blockedTotal.value = totalCounter.incrementAndGet().toInt() // atomic single-writer publish
         val host = hostOf(url).ifBlank { "unknown" }
-        val newCount = domainCounts.computeIfAbsent(host) { AtomicLong() }.incrementAndGet()
-        _blockedByDomain.value = _blockedByDomain.value + (host to newCount.toInt())
+        // Roll subdomains up to the matched blocklist parent (ad.doubleclick.net → doubleclick.net)
+        // so the per-domain stats read like the blocklist itself.
+        val bucket = TRACKER_DOMAINS.firstOrNull { d -> host == d || host.endsWith(".$d") } ?: host
+        val newCount = domainCounts.computeIfAbsent(bucket) { AtomicLong() }.incrementAndGet()
+        _blockedByDomain.value = _blockedByDomain.value + (bucket to newCount.toInt())
     }
 
     /** Clears the session counters (used by tests and "reset stats"). */
