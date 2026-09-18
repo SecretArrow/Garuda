@@ -1,28 +1,37 @@
 package com.motion.browser.ui.browser
 
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -33,25 +42,33 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.motion.browser.ServiceLocator
 import com.motion.browser.browser.NEW_TAB_URL
+import com.motion.browser.data.entity.HistoryEntity
+import com.motion.browser.data.entity.BookmarkEntity
 import com.motion.browser.shields.ShieldsEngine
-import com.motion.browser.shields.ShieldsState
 import kotlinx.coroutines.launch
 
 /**
- * Omnibox row (Chrome-tabstrip layout): back / forward / reload-stop + editable
- * URL field + overflow menu. Committing text navigates; plain search terms go
- * through the default engine (handled by BrowserController.normalizeUrl).
+ * Omnibox v2 (Chrome-mobile style): secure indicator + URL field with live
+ * suggestions (bookmarks + history + search) + copy/share + overflow menu.
+ * Committing text navigates; plain search terms use the default search engine
+ * via [com.motion.browser.data.SettingsRepository.searchUrlFor].
  */
 @Composable
 fun Omnibox(
     onOpenControl: () -> Unit,
-    modifier: Modifier = Modifier
+    onOpenMenu: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val manager = ServiceLocator.tabs ?: return
     val controller = ServiceLocator.browser ?: return
+    val settingsRepo = ServiceLocator.settingsRepository
     val tabs by manager.tabs.collectAsState()
     val activeId by manager.activeTabId.collectAsState()
     val active = tabs.firstOrNull { it.id == activeId }
@@ -59,28 +76,20 @@ fun Omnibox(
 
     var editing by remember(activeId) { mutableStateOf(false) }
     var draft by remember(activeId) { mutableStateOf("") }
-    var menuOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
-    androidx.compose.foundation.layout.Column(modifier = modifier.fillMaxWidth()) {
+    val bookmarks by ServiceLocator.database.bookmarkDao().allFlat().collectAsState(initial = emptyList())
+    val history by ServiceLocator.database.historyDao().recent(80).collectAsState(initial = emptyList())
+
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(
-                enabled = active?.canGoBack == true,
-                onClick = { controller.goBack() }
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            IconButton(
-                enabled = active?.canGoForward == true,
-                onClick = { controller.goForward() }
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward")
-            }
             if (engineState?.isLoading == true) {
                 IconButton(onClick = { controller.stopLoading() }) {
                     Icon(Icons.Filled.Close, contentDescription = "Stop loading")
@@ -91,65 +100,181 @@ fun Omnibox(
                 }
             }
             OutlinedTextField(
-                value = if (editing) draft else (active?.url?.takeIf { it != NEW_TAB_URL } ?: ""),
+                value = if (editing) draft else displayUrl(active?.url),
                 onValueChange = { draft = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall,
-                placeholder = { Text("Search or enter address", style = MaterialTheme.typography.bodySmall) },
-                keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
+                textStyle = MaterialTheme.typography.bodyMedium,
+                leadingIcon = {
+                    val secure = (active?.url ?: "").startsWith("https://")
+                    Icon(
+                        imageVector = if (secure) Icons.Filled.Lock else Icons.Outlined.LockOpen,
+                        contentDescription = if (secure) "Secure connection (HTTPS)" else "Not secure",
+                        tint = if (secure) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                placeholder = {
+                    Text("Search or enter address", style = MaterialTheme.typography.bodyMedium)
+                },
+                keyboardOptions = KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Go,
+                ),
                 keyboardActions = KeyboardActions(onGo = {
                     editing = false
-                    val target = draft
+                    val target = draft.trim()
                     if (target.isNotBlank()) {
-                        scope.launch { controller.openUrl(target) }
+                        scope.launch { controller.openUrl(resolveTarget(target, settingsRepo)) }
                         draft = ""
                     }
-                })
+                }),
             )
             ShieldsBadge()
-            IconButton(onClick = { menuOpen = true }) {
+            IconButton(onClick = onOpenMenu) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("New tab") },
-                    onClick = { menuOpen = false; manager.createTab() }
-                )
-                DropdownMenuItem(
-                    text = { Text("New private tab") },
-                    onClick = { menuOpen = false; manager.createTab(isPrivate = true) }
-                )
-                DropdownMenuItem(
-                    text = { Text("Bookmark this page") },
-                    onClick = {
-                        menuOpen = false
-                        val url = active?.url ?: return@DropdownMenuItem
-                        val title = active.title.ifBlank { url }
-                        if (url.startsWith("http")) {
-                            scope.launch { controller.saveBookmark(title, url) }
-                        }
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Motion Control Center") },
-                    onClick = { menuOpen = false; onOpenControl() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Shields: " + if (ShieldsState.enabled.value) "ON" else "OFF") },
-                    onClick = { ShieldsState.enabled.value = !ShieldsState.enabled.value }
-                )
-                DropdownMenuItem(
-                    text = { Text("Block 3rd-party cookies: " + if (ShieldsState.blockThirdPartyCookies.value) "ON" else "OFF") },
-                    onClick = { ShieldsState.blockThirdPartyCookies.value = !ShieldsState.blockThirdPartyCookies.value }
-                )
             }
         }
         if (engineState?.isLoading == true) {
             LinearProgressIndicator(
                 progress = { (engineState.progress / 100f).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
+        }
+        if (editing) {
+            SuggestionList(
+                query = draft,
+                bookmarks = bookmarks,
+                history = history,
+                onOpen = { target ->
+                    editing = false
+                    draft = ""
+                    scope.launch { controller.openUrl(target) }
+                },
+                onSearch = { term ->
+                    editing = false
+                    draft = ""
+                    scope.launch { controller.openUrl(settingsRepo.searchUrlFor(term)) }
+                },
+            )
+        }
+        // Copy-URL quick affordance (long list of share options lives in the menu).
+        if (!editing && active?.url?.startsWith("http") == true) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = active.title.ifBlank { displayUrl(active.url) },
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { editing = true; draft = displayUrl(active.url) },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                IconButton(onClick = {
+                    clipboard.setText(AnnotatedString(active.url))
+                    Toast.makeText(context, "URL copied", Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(
+                        Icons.Filled.ContentCopy, contentDescription = "Copy URL",
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun displayUrl(url: String?): String =
+    if (url == null || url == NEW_TAB_URL || url.startsWith("about:")) "" else url
+
+/** Chrome-like resolution: URL-ish input navigates, everything else searches. */
+internal fun resolveTarget(input: String, settingsRepo: com.motion.browser.data.SettingsRepository): String {
+    val trimmed = input.trim()
+    val looksLikeUrl =
+        trimmed.startsWith("http://") || trimmed.startsWith("https://") ||
+            trimmed.matches(Regex("^[a-z0-9-]+(\\.[a-z0-9-]+)+(:\\d+)?(/.*)?$", RegexOption.IGNORE_CASE))
+    return if (looksLikeUrl) {
+        if (trimmed.startsWith("http")) trimmed else "https://$trimmed"
+    } else {
+        settingsRepo.searchUrlFor(trimmed)
+    }
+}
+
+@Composable
+private fun SuggestionList(
+    query: String,
+    bookmarks: List<BookmarkEntity>,
+    history: List<HistoryEntity>,
+    onOpen: (String) -> Unit,
+    onSearch: (String) -> Unit,
+) {
+    val q = query.trim()
+    if (q.isEmpty()) return
+    val bookmarkHits = bookmarks.filter { it.title.contains(q, true) || it.url.contains(q, true) }.take(3)
+    val historyHits = history.filter { it.title.contains(q, true) || it.url.contains(q, true) }.take(3)
+    val seen = bookmarkHits.map { it.url }.toSet()
+    val historyDedup = historyHits.filter { it.url !in seen }
+
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+        Column(Modifier.fillMaxWidth()) {
+            SuggestionRow(Icons.Filled.Search, "Search \"$q\"") { onSearch(q) }
+            bookmarkHits.forEach { b ->
+                SuggestionRow(Icons.Filled.Star, b.title, subtitle = b.url) { onOpen(b.url) }
+            }
+            historyDedup.forEach { h ->
+                SuggestionRow(Icons.Filled.History, h.title, subtitle = h.url) { onOpen(h.url) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon, contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(Modifier
+            .weight(1f)
+            .padding(start = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) {
+                Text(
+                    subtitle, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -160,9 +285,14 @@ fun Omnibox(
  */
 @Composable
 private fun ShieldsBadge() {
-    val shieldsOn by ShieldsState.enabled.collectAsState()
+    val shieldsOn by com.motion.browser.shields.ShieldsState.enabled.collectAsState()
     val blocked by ShieldsEngine.blockedTotal.collectAsState()
-    IconButton(onClick = { ShieldsState.enabled.value = !ShieldsState.enabled.value }) {
+    val scope = rememberCoroutineScope()
+    IconButton(onClick = {
+        scope.launch {
+            runCatching { ServiceLocator.settingsRepository.setShieldsEnabled(!shieldsOn) }
+        }
+    }) {
         BadgedBox(
             badge = {
                 if (shieldsOn && blocked > 0) {

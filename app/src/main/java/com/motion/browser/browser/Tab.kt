@@ -22,5 +22,7 @@ data class Tab(
     val canGoBack: Boolean = false,
     val canGoForward: Boolean = false,
     val isLoading: Boolean = false,
-    val progress: Int = 0
+    val progress: Int = 0,
+    /** Last main-frame load error (null when clean) — drives the in-app error card. */
+    val lastError: String? = null
 )

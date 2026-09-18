@@ -91,6 +91,11 @@ object ServiceLocator {
 
     val secretStore: SecretStore by lazy { SecretStore(appContext) }
 
+    /** User-facing browser settings (theme, privacy, web compat, downloads). */
+    val settingsRepository: com.motion.browser.data.SettingsRepository by lazy {
+        com.motion.browser.data.SettingsRepository(appContext)
+    }
+
     // ------------------------------------------------------------------ AI layer
 
     val providerManager: ProviderManager by lazy {

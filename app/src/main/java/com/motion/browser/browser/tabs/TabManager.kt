@@ -80,6 +80,11 @@ class TabManager(private val activity: Context) {
     val activeFileChooser: com.motion.browser.browser.engine.FileChooserBridge?
         get() = engineForActive()?.fileChooser
 
+    /** Motion download manager (pause/resume/cancel/retry). Created lazily. */
+    val downloads: com.motion.browser.browser.downloads.MotionDownloader by lazy {
+        com.motion.browser.browser.downloads.MotionDownloader(context)
+    }
+
     init {
         scope.launch { restoreSession() }
         scope.launch {
@@ -87,7 +92,14 @@ class TabManager(private val activity: Context) {
                 val private = _tabs.value.firstOrNull { it.id == tabId }?.isPrivate ?: false
                 if (!private && url.startsWith("http")) {
                     runCatching { storeHistory(url, title) }
+                    runCatching { recordHistoryRow(url, title) }
                 }
+            }
+        }
+        // Apply user web settings to every live engine whenever they change.
+        scope.launch {
+            com.motion.browser.ServiceLocator.settingsRepository.settings.collect {
+                holders.values.forEach { h -> runCatching { h.engine.applyUserSettings() } }
             }
         }
     }
@@ -150,7 +162,12 @@ class TabManager(private val activity: Context) {
                     }
                     is EngineEvent.TitleChanged -> updateProjection(tabId) { copy(title = event.title) }
                     is EngineEvent.PageCommitVisible -> Unit
-                    is EngineEvent.HttpError, is EngineEvent.LoadError -> updateProjection(tabId) { copy(isLoading = false) }
+                    is EngineEvent.HttpError -> updateProjection(tabId) {
+                        copy(isLoading = false, lastError = if (event.isMainFrame) "HTTP ${event.statusCode}" else lastError)
+                    }
+                    is EngineEvent.LoadError -> updateProjection(tabId) {
+                        copy(isLoading = false, lastError = if (event.isMainFrame) (event.description ?: "Load error") else lastError)
+                    }
                     EngineEvent.RenderProcessGone -> {
                         // Spec §40: renderer died. Rebuild lazily; UI re-attaches via getContainerView.
                         holders[tabId]?.let { h ->
@@ -163,6 +180,13 @@ class TabManager(private val activity: Context) {
                         pendingLoad[newId] = event.url
                     }
                     is EngineEvent.RequestBlocked -> Unit // stats already recorded in ShieldsEngine
+                    is EngineEvent.DownloadRequested -> runCatching {
+                        downloads.enqueue(
+                            url = event.url,
+                            contentDisposition = event.contentDisposition,
+                            mimeTypeHint = event.mimeType,
+                        )
+                    }
                 }
             }
         }
@@ -231,6 +255,14 @@ class TabManager(private val activity: Context) {
 
     fun isPrivate(id: String): Boolean = _tabs.value.firstOrNull { it.id == id }?.isPrivate ?: false
 
+    /** "Desktop site" toggle for a tab (UA swap + reload). */
+    fun setDesktopSite(id: String, enabled: Boolean) {
+        engineFor(id)?.setDesktopUserAgent(enabled)
+    }
+
+    fun desktopSiteEnabled(id: String): Boolean =
+        (getWebView(id)?.settings?.userAgentString ?: "").contains("Chrome/124.0.0.0")
+
     // ------------------------------------------------------------------ internals
 
     private fun updateProjection(tabId: String, transform: Tab.() -> Tab) {
@@ -239,6 +271,23 @@ class TabManager(private val activity: Context) {
 
     /** Coordinator/BrowserController hook to reflect URL changes into the tab projection. */
     internal fun applyProjection(tabId: String, transform: Tab.() -> Tab) = updateProjection(tabId, transform)
+
+    /** Persistent browsing history (browser data screen). URL-deduplicated. */
+    private suspend fun recordHistoryRow(url: String, title: String) {
+        val dao = com.motion.browser.ServiceLocator.database.historyDao()
+        val now = System.currentTimeMillis()
+        val existing = runCatching { dao.getByUrl(url) }.getOrNull()
+        dao.upsert(
+            com.motion.browser.data.entity.HistoryEntity(
+                id = existing?.id ?: stableId("HISTORY_ROW:$url"),
+                url = url,
+                title = title.ifBlank { url },
+                visitedAt = now,
+                visitCount = (existing?.visitCount ?: 0) + 1,
+                isPrivate = false
+            )
+        )
+    }
 
     private fun storeHistory(url: String, title: String) {
         val dao = com.motion.browser.ServiceLocator.database.memoryDao()

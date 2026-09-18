@@ -140,3 +140,66 @@ data class ApprovalEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val resolvedAt: Long? = null
 )
+
+// ============================================================================
+// Browser data layer (v2): bookmarks, history, downloads, AI chat sessions.
+// Conventions unchanged: string PKs, epoch-millis timestamps.
+// ============================================================================
+
+@Entity(tableName = "bookmarks", indices = [Index(value = ["url"], unique = false), Index("folder")])
+data class BookmarkEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val url: String,
+    val title: String,
+    /** Simple folder/category name; "" = root. */
+    val folder: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "history", indices = [Index(value = ["url"], unique = true), Index("visitedAt")])
+data class HistoryEntity(
+    /** Stable hash of the URL so re-visits upsert instead of duplicating rows. */
+    @PrimaryKey val id: String,
+    val url: String,
+    val title: String,
+    val visitedAt: Long = System.currentTimeMillis(),
+    val visitCount: Int = 1,
+    /** Private-tab visits are never persisted; this flag only marks legacy rows. */
+    val isPrivate: Boolean = false
+)
+
+@Entity(tableName = "downloads", indices = [Index("createdAt")])
+data class DownloadEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val url: String,
+    val fileName: String,
+    val filePath: String = "",
+    val mimeType: String = "application/octet-stream",
+    /** PENDING | RUNNING | PAUSED | COMPLETED | FAILED | CANCELLED */
+    val status: String = "PENDING",
+    val bytesDownloaded: Long = 0,
+    val totalBytes: Long = -1,
+    val error: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null
+)
+
+@Entity(tableName = "chat_sessions", indices = [Index("updatedAt")])
+data class ChatSessionEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val title: String = "New chat",
+    val pinned: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+/** role: "user" | "assistant" | "status". */
+@Entity(tableName = "chat_messages", indices = [Index("sessionId"), Index("createdAt")])
+data class ChatMessageEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val sessionId: String,
+    val role: String,
+    val content: String,
+    val createdAt: Long = System.currentTimeMillis()
+)

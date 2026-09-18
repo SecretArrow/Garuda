@@ -9,15 +9,21 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.Manifest
+import android.content.pm.PackageManager
 import android.webkit.CookieManager
+import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import androidx.core.content.ContextCompat
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.motion.browser.ServiceLocator
 import com.motion.browser.browser.NEW_TAB_URL
 import com.motion.browser.shields.ShieldsEngine
 import com.motion.browser.shields.ShieldsState
@@ -78,6 +84,7 @@ internal class WebViewEngine(
     private fun recordMainError(message: String) {
         loadFailed.set(true)
         lastErrorRef.set(message)
+        _state.value = _state.value.copy(lastError = message)
     }
 
     // ------------------------------------------------------------------ creation
@@ -91,7 +98,7 @@ internal class WebViewEngine(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         )
         wv.settings.apply {
-            javaScriptEnabled = true
+            javaScriptEnabled = true // modern web baseline; user toggle respected below
             domStorageEnabled = true
             databaseEnabled = true
             loadsImagesAutomatically = true
@@ -100,23 +107,68 @@ internal class WebViewEngine(
             builtInZoomControls = true
             displayZoomControls = false
             supportZoom()
-            mediaPlaybackRequiresUserGesture = false
             javaScriptCanOpenWindowsAutomatically = true
             setSupportMultipleWindows(true)
             cacheMode = WebSettings.LOAD_DEFAULT
+            setNeedInitialFocus(false)
             if (isPrivateTab) {
                 saveFormData = false
             }
         }
+        applyUserSettings(wv)
         wv.webViewClient = client
         wv.webChromeClient = chrome
+        wv.setDownloadListener { url, _, contentDisposition, mimeType, _ ->
+            _events.tryEmit(EngineEvent.DownloadRequested(url, contentDisposition, mimeType))
+        }
         CookieManager.getInstance().setAcceptThirdPartyCookies(
-            wv, !isPrivateTab && !ShieldsState.blockThirdPartyCookies.value
+            wv, !isPrivateTab && !ServiceLocator.settingsRepository.current.blockThirdPartyCookies
         )
         wv.addJavascriptInterface(Bridge(), "MotionBridge")
         webView = wv
         return wv
     }
+
+    /**
+     * Applies user preferences (Settings screen) onto a live WebView. Called at
+     * creation and whenever settings change (TabManager observes the flow).
+     */
+    fun applyUserSettings(target: WebView? = null) {
+        val wv = target ?: webView ?: return
+        val s = ServiceLocator.settingsRepository.current
+        runCatching {
+            wv.settings.apply {
+                javaScriptEnabled = s.javascriptEnabled
+                mediaPlaybackRequiresUserGesture = !s.autoplayEnabled
+                blockNetworkLoads = false
+                safeBrowsingEnabled = s.safeBrowsing
+                textZoom = s.textZoom
+                userAgentString = if (s.desktopSiteDefault) DESKTOP_USER_AGENT else defaultUserAgent
+            }
+            @Suppress("DEPRECATION")
+            wv.settings.forceDark = if (s.forceDarkInWebView) {
+                WebSettings.FORCE_DARK_ON
+            } else {
+                WebSettings.FORCE_DARK_OFF
+            }
+            CookieManager.getInstance().setAcceptCookie(s.cookiesEnabled && !isPrivateTab)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(
+                wv, s.cookiesEnabled && !isPrivateTab && !s.blockThirdPartyCookies
+            )
+        }
+    }
+
+    /** Desktop-site toggle for this tab (UA swap + reload happens upstream). */
+    fun setDesktopUserAgent(enabled: Boolean) {
+        val wv = webView ?: return
+        runCatching {
+            wv.settings.userAgentString = if (enabled) DESKTOP_USER_AGENT else defaultUserAgent
+            wv.reload()
+        }
+    }
+
+    private val defaultUserAgent: String
+        get() = runCatching { WebSettings.getDefaultUserAgent(activityContext) }.getOrDefault("")
 
     private val client = object : WebViewClient() {
         /**
@@ -139,6 +191,7 @@ internal class WebViewEngine(
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             loadFailed.set(false)
             lastErrorRef.set(null)
+            _state.value = _state.value.copy(lastError = null)
             _state.value = _state.value.copy(url = url, isLoading = true, canGoBack = view.canGoBack(), canGoForward = view.canGoForward())
             _events.tryEmit(EngineEvent.PageStarted(url))
         }
@@ -190,6 +243,58 @@ internal class WebViewEngine(
             _state.value = _state.value.copy(progress = newProgress)
         }
 
+        // ---- HTML5 fullscreen video (custom view host, rendered by the UI layer)
+        override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+            CustomViewHost.enter(view, callback)
+            _events.tryEmit(EngineEvent.FullscreenChanged(true))
+        }
+
+        override fun onHideCustomView() {
+            CustomViewHost.exit()
+            _events.tryEmit(EngineEvent.FullscreenChanged(false))
+        }
+
+        // ---- Camera / microphone consent (web APIs) gated by site settings + app grants
+        override fun onPermissionRequest(request: PermissionRequest?) {
+            val req = request ?: return
+            req.request.origin?.let { origin ->
+                val granted = req.resources.mapNotNull { resource ->
+                    when (resource) {
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                            resource.takeIf { siteAllows("camera") && hasAppPermission(Manifest.permission.CAMERA) }
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                            resource.takeIf { siteAllows("microphone") && hasAppPermission(Manifest.permission.RECORD_AUDIO) }
+                        else -> null
+                    }
+                }.toTypedArray()
+                mainHandlerSafe.post {
+                    runCatching { if (granted.isEmpty()) req.deny() else req.grant(granted) }
+                }
+            } ?: mainHandlerSafe.post { runCatching { req.deny() } }
+        }
+
+        // ---- Geolocation consent
+        override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: GeolocationPermissions.Callback?) {
+            val allow = siteAllows("location") &&
+                hasAppPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+            callback?.invoke(origin, allow, false)
+        }
+
+        private fun siteAllows(kind: String): Boolean {
+            val s = ServiceLocator.settingsRepository.current
+            return when (kind) {
+                "camera" -> s.siteCamera
+                "microphone" -> s.siteMicrophone
+                "location" -> s.siteLocation
+                "notifications" -> s.siteNotifications
+                else -> false
+            }
+        }
+
+        private fun hasAppPermission(permission: String): Boolean =
+            ContextCompat.checkSelfPermission(activityContext, permission) ==
+                PackageManager.PERMISSION_GRANTED
+
         override fun onReceivedTitle(view: WebView, title: String) {
             _state.value = _state.value.copy(title = title)
             _events.tryEmit(EngineEvent.TitleChanged(title))
@@ -228,13 +333,34 @@ internal class WebViewEngine(
         if (destroyed) return
         if (url == NEW_TAB_URL) return // pure UI surface, never loaded
         val wv = ensureCreated() as WebView
-        wv.post { if (!destroyed) wv.loadUrl(url) }
+        applyUserSettings(wv)
+        val headers = mutableMapOf<String, String>()
+        if (ServiceLocator.settingsRepository.current.doNotTrack) headers["DNT"] = "1"
+        wv.post { if (!destroyed) runCatching { wv.loadUrl(url, headers) } }
     }
 
     override fun goBack() = withView { it.goBack() }
     override fun goForward() = withView { it.goForward() }
     override fun reload() = withView { it.reload() }
     override fun stopLoading() = withView { it.stopLoading() }
+
+    /** Move between find-in-page matches (forward = true) — used by the find bar UI. */
+    fun findNext(forward: Boolean) {
+        val wv = webView ?: return
+        mainHandlerSafe { if (!destroyed) wv.findNext(forward) }
+    }
+
+    /** Close find-in-page mode and clear highlights. */
+    fun clearFind() {
+        val wv = webView ?: return
+        mainHandlerSafe { if (!destroyed) runCatching { wv.findAllAsync("") } }
+    }
+
+    private val mainHandlerSafe = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun mainHandlerSafe(block: () -> Unit) {
+        mainHandlerSafe.post { runCatching { block() } }
+    }
 
     override fun canGoBack(): Boolean = _state.value.canGoBack
     override fun canGoForward(): Boolean = _state.value.canGoForward
@@ -357,5 +483,35 @@ internal class WebViewEngine(
     private inner class Bridge {
         @JavascriptInterface
         fun onAgentPing(): String = "motion"
+    }
+}
+
+/** UA used by the "Desktop site" toggle (Chrome desktop Linux, current stable). */
+private const val DESKTOP_USER_AGENT =
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/124.0.0.0 Safari/537.36"
+
+/**
+ * Holds the active HTML5 fullscreen video view so the UI layer can render it
+ * above everything (BrowserScreen observes [view]). Engine-agnostic and
+ * process-wide; only one fullscreen surface can exist at a time.
+ */
+object CustomViewHost {
+    private val _view = MutableStateFlow<View?>(null)
+    val view: StateFlow<View?> = _view.asStateFlow()
+
+    @Volatile
+    private var callback: WebChromeClient.CustomViewCallback? = null
+
+    fun enter(v: View, cb: WebChromeClient.CustomViewCallback) {
+        callback?.let { runCatching { it.onCustomViewHidden() } }
+        callback = cb
+        _view.value = v
+    }
+
+    fun exit() {
+        runCatching { callback?.onCustomViewHidden() }
+        callback = null
+        _view.value = null
     }
 }

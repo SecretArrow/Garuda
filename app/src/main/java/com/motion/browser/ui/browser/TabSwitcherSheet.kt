@@ -146,6 +146,30 @@ fun TabSwitcherSheet(
                     Text("  Reopen closed")
                 }
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 0.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                TextButton(
+                    enabled = activeId != null,
+                    onClick = { activeId?.let { manager.duplicateTab(it) }; onDismiss() }
+                ) {
+                    Icon(Icons.Filled.Tab, contentDescription = null, Modifier.size(16.dp))
+                    Text("  Duplicate tab")
+                }
+                TextButton(
+                    enabled = tabs.isNotEmpty(),
+                    onClick = {
+                        tabs.map { it.id }.forEach { manager.closeTab(it) }
+                        onDismiss()
+                    }
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, Modifier.size(16.dp))
+                    Text("  Close all")
+                }
+            }
         }
     }
 }

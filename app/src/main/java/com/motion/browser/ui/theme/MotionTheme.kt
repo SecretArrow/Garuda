@@ -167,3 +167,26 @@ fun MotionTheme(
         content = content,
     )
 }
+
+/** Relative luminance via ColorSpace-level math available in Compose Color. */
+fun Color.luminanceCompat(): Float =
+    (0.2126f * red + 0.7152f * green + 0.0722f * blue)
+
+/**
+ * MotionTheme variant driven by the user's Settings (ThemeMode + dynamic color).
+ * The original [MotionTheme] overload is kept for tests/previews.
+ */
+@androidx.compose.runtime.Composable
+fun MotionTheme(
+    themeMode: com.motion.browser.data.ThemeMode,
+    dynamicColor: Boolean,
+    content: @Composable () -> Unit,
+) {
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val dark = when (themeMode) {
+        com.motion.browser.data.ThemeMode.SYSTEM -> systemDark
+        com.motion.browser.data.ThemeMode.LIGHT -> false
+        com.motion.browser.data.ThemeMode.DARK -> true
+    }
+    MotionTheme(darkTheme = dark, dynamicColor = dynamicColor, content = content)
+}

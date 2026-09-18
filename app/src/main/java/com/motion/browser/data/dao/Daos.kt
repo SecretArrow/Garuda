@@ -243,3 +243,130 @@ interface ApprovalDao {
     )
     suspend fun expireStale(olderThan: Long, resolvedAt: Long): Int
 }
+
+// ============================================================================
+// Browser data DAOs (v2): bookmarks, history, downloads, AI chat.
+// ============================================================================
+
+interface BookmarkDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(bookmark: BookmarkEntity)
+
+    @Query("DELETE FROM bookmarks WHERE id = :id")
+    suspend fun deleteById(id: String): Int
+
+    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
+    suspend fun getByUrl(url: String): BookmarkEntity?
+
+    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
+    fun observeByUrl(url: String): Flow<BookmarkEntity?>
+
+    @Query("SELECT * FROM bookmarks WHERE folder = :folder ORDER BY title COLLATE NOCASE")
+    fun byFolder(folder: String): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks ORDER BY folder COLLATE NOCASE, title COLLATE NOCASE")
+    fun allFlat(): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks WHERE title LIKE '%' || :query || '%' OR url LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
+    fun search(query: String): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT DISTINCT folder FROM bookmarks WHERE folder != '' ORDER BY folder COLLATE NOCASE")
+    fun allOtherFolders(): Flow<List<String>>
+
+    @Query("UPDATE bookmarks SET title = :title, url = :url, folder = :folder, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun update(id: String, title: String, url: String, folder: String, updatedAt: Long)
+
+    @Query("DELETE FROM bookmarks")
+    suspend fun clear()
+}
+
+interface HistoryDao {
+    /** Stable id = hash(url): re-visits refresh visitedAt/title and bump visitCount. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: HistoryEntity)
+
+    @Query("DELETE FROM history WHERE id = :id")
+    suspend fun deleteById(id: String): Int
+
+    @Query("DELETE FROM history WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>): Int
+
+    @Query("DELETE FROM history")
+    suspend fun clear()
+
+    @Query("SELECT * FROM history ORDER BY visitedAt DESC LIMIT :limit")
+    fun recent(limit: Int): Flow<List<HistoryEntity>>
+
+    @Query("SELECT * FROM history WHERE title LIKE '%' || :query || '%' OR url LIKE '%' || :query || '%' ORDER BY visitedAt DESC LIMIT :limit")
+    fun search(query: String, limit: Int): Flow<List<HistoryEntity>>
+
+    @Query("SELECT * FROM history ORDER BY visitCount DESC, visitedAt DESC LIMIT :limit")
+    fun topSites(limit: Int): Flow<List<HistoryEntity>>
+
+    @Query("SELECT * FROM history WHERE url = :url LIMIT 1")
+    suspend fun getByUrl(url: String): HistoryEntity?
+
+    @Query("SELECT COUNT(*) FROM history")
+    suspend fun count(): Int
+}
+
+interface DownloadDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(download: DownloadEntity)
+
+    @Query("SELECT * FROM downloads WHERE id = :id")
+    suspend fun getById(id: String): DownloadEntity?
+
+    @Query("SELECT * FROM downloads ORDER BY createdAt DESC")
+    fun all(): Flow<List<DownloadEntity>>
+
+    @Query("UPDATE downloads SET status = :status, bytesDownloaded = :bytes, totalBytes = :total, error = :error, filePath = :filePath, completedAt = :completedAt WHERE id = :id")
+    suspend fun updateProgress(id: String, status: String, bytes: Long, total: Long, error: String?, filePath: String, completedAt: Long?)
+
+    @Query("DELETE FROM downloads WHERE id = :id")
+    suspend fun deleteById(id: String): Int
+
+    @Query("DELETE FROM downloads WHERE status = :status")
+    suspend fun deleteByStatus(status: String): Int
+}
+
+interface ChatDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSession(session: ChatSessionEntity)
+
+    @Query("DELETE FROM chat_sessions WHERE id = :id")
+    suspend fun deleteSession(id: String): Int
+
+    @Query("UPDATE chat_sessions SET title = :title WHERE id = :id")
+    suspend fun renameSession(id: String, title: String)
+
+    @Query("UPDATE chat_sessions SET pinned = :pinned WHERE id = :id")
+    suspend fun setPinned(id: String, pinned: Boolean)
+
+    @Query("SELECT * FROM chat_sessions ORDER BY pinned DESC, updatedAt DESC")
+    fun sessions(): Flow<List<ChatSessionEntity>>
+
+    @Query("SELECT * FROM chat_sessions WHERE title LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
+    fun searchSessions(query: String): Flow<List<ChatSessionEntity>>
+
+    @Query("SELECT * FROM chat_sessions WHERE id = :id")
+    suspend fun getSession(id: String): ChatSessionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: ChatMessageEntity)
+
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt ASC")
+    fun messages(sessionId: String): Flow<List<ChatMessageEntity>>
+
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt ASC")
+    suspend fun messagesOnce(sessionId: String): List<ChatMessageEntity>
+
+    @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
+    suspend fun clearMessages(sessionId: String): Int
+
+    @Query("DELETE FROM chat_messages WHERE id = :id")
+    suspend fun deleteMessage(id: String): Int
+
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY createdAt DESC LIMIT 1")
+    suspend fun lastMessage(sessionId: String): ChatMessageEntity?
+}

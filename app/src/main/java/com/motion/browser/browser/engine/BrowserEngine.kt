@@ -19,7 +19,9 @@ data class EngineSnapshot(
     val canGoBack: Boolean = false,
     val canGoForward: Boolean = false,
     val isLoading: Boolean = false,
-    val progress: Int = 0
+    val progress: Int = 0,
+    /** Last main-frame error for the current page (null when the load is clean). */
+    val lastError: String? = null
 )
 
 /**
@@ -42,6 +44,16 @@ sealed class EngineEvent {
 
     /** Shields blocked a tracker/ad subresource (url = the blocked request). */
     data class RequestBlocked(val url: String) : EngineEvent()
+
+    /** The page asked the browser to download a resource (DownloadListener). */
+    data class DownloadRequested(
+        val url: String,
+        val contentDisposition: String?,
+        val mimeType: String?
+    ) : EngineEvent()
+
+    /** Fullscreen HTML5 video entered/left (custom view host). */
+    data class FullscreenChanged(val active: Boolean) : EngineEvent()
 }
 
 /**

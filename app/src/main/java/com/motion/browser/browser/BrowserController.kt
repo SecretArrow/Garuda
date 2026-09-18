@@ -290,20 +290,56 @@ class BrowserController(private val tabs: TabManager) {
         }.getOrDefault(false)
     }
 
-    suspend fun saveBookmark(title: String, url: String) = withContext(Dispatchers.IO) {
-        val dao = com.motion.browser.ServiceLocator.database.memoryDao()
-        val now = System.currentTimeMillis()
-        dao.upsert(
-            MemoryEntity(
-                id = stableId("BOOKMARK:$url"), scope = "BOOKMARK", key = url, value = title,
-                goalId = null, domain = null, updatedAt = now
+    suspend fun saveBookmark(title: String, url: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dao = com.motion.browser.ServiceLocator.database.bookmarkDao()
+            val existing = dao.getByUrl(url)
+            dao.upsert(
+                com.motion.browser.data.entity.BookmarkEntity(
+                    id = existing?.id ?: stableId("BOOKMARK:$url"),
+                    url = url,
+                    title = title.ifBlank { url },
+                    folder = existing?.folder ?: "",
+                    createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
             )
-        )
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Toggles the bookmark for [url]; returns true when the page is now bookmarked. */
+    suspend fun toggleBookmark(title: String, url: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dao = com.motion.browser.ServiceLocator.database.bookmarkDao()
+            if (dao.getByUrl(url) != null) {
+                // Remove (delete by URL — dao deletes by id).
+                val id = stableId("BOOKMARK:$url")
+                dao.deleteById(id)
+                false
+            } else {
+                saveBookmark(title, url)
+                true
+            }
+        }.getOrDefault(false)
+    }
+
+    suspend fun isBookmarked(url: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching { com.motion.browser.ServiceLocator.database.bookmarkDao().getByUrl(url) != null }
+            .getOrDefault(false)
     }
 
     suspend fun addHistory(url: String, title: String) = withContext(Dispatchers.IO) {
         val dao = com.motion.browser.ServiceLocator.database.memoryDao()
         val now = System.currentTimeMillis()
+        runCatching {
+            ServiceLocator.database.historyDao().upsert(
+                com.motion.browser.data.entity.HistoryEntity(
+                    id = stableId("HISTORY_ROW:$url"), url = url,
+                    title = title.ifBlank { url }, visitedAt = now, visitCount = 1, isPrivate = false
+                )
+            )
+        }
         dao.upsert(
             MemoryEntity(
                 id = stableId("HISTORY:$url:$now"), scope = "HISTORY", key = now.toString(),
