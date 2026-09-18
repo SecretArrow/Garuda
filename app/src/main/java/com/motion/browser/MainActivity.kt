@@ -49,6 +49,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Re-assert adaptive system bar appearance — some OEM skins reset the
+        // insets-controller flags when the window regains focus (resume,
+        // WebView fullscreen exit, dialogs).
+        if (hasFocus) {
+            runCatching { com.motion.browser.ui.theme.MotionSystemBars.reassert(window) }
+        }
+    }
+
     /** Share-to-AI (ACTION_SEND) and selection → Ask AI (ACTION_PROCESS_TEXT). */
     private fun consumeShareOrProcessText(intent: Intent?) {
         intent ?: return
