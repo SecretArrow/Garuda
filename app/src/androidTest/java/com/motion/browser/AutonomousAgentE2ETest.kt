@@ -3,7 +3,7 @@ package com.motion.browser
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.motion.browser.ai.ProviderConfig
+import com.motion.browser.ai.core.ProviderConfig
 import com.motion.browser.ai.core.ProviderType
 import com.motion.browser.ai.core.RoleType
 import com.motion.browser.data.entity.GoalEntity
