@@ -1,13 +1,16 @@
 package com.motion.browser.ui.browser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -25,6 +28,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -156,6 +161,20 @@ fun BrowserScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+                // First-launch coach-mark: tell the user where Settings & AI live.
+                val settingsRepo = ServiceLocator.settingsRepository
+                val appSettings by settingsRepo.settings.collectAsState()
+                if (!appSettings.onboardingDone) {
+                    OnboardingCard(
+                        onOpenAi = onOpenAi,
+                        onOpenSettings = onOpenSettings,
+                        onDismiss = { scope.launch { runCatching { settingsRepo.setOnboardingDone(true) } } },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                    )
+                }
             }
 
             // Find-in-page sits above the bottom bar (Chrome parity).
@@ -208,11 +227,30 @@ fun BrowserScreen(
                         Icon(Icons.Filled.Tab, contentDescription = "Tab switcher")
                         Text(" ${manager.openCount}")
                     }
-                    IconButton(onClick = onOpenAi) {
-                        Icon(
-                            Icons.Filled.AutoAwesome, contentDescription = "Motion AI",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                    // Labeled AI pill — the sparkle icon alone was too easy to miss.
+                    Surface(
+                        onClick = onOpenAi,
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(end = 4.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoAwesome, contentDescription = "Motion AI",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                "AI",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -252,6 +290,58 @@ fun BrowserScreen(
 
     // SAF file chooser bridge for real website uploads (spec §43).
     FileChooserHost()
+}
+
+/** One-time coach-mark explaining where Settings / AI / the menu live. */
+@Composable
+private fun OnboardingCard(
+    onOpenAi: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 4.dp,
+        shadowElevation = 6.dp,
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.AutoAwesome, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    "Welcome to Motion",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                "• AI button (bottom bar): AI chat, page Q&A and translation\n" +
+                    "• Menu (three dots, top right): AI Agents, Settings, bookmarks, history\n" +
+                    "• AI Agents can browse, click and fill forms for you — see Control Center",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { onOpenAi(); onDismiss() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ),
+                ) { Text("Try AI") }
+                Button(onClick = { onOpenSettings(); onDismiss() }) { Text("Settings") }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text("Got it") }
+            }
+        }
+    }
 }
 
 @Composable

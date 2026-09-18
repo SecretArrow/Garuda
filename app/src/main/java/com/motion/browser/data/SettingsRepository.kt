@@ -77,6 +77,8 @@ data class BrowserSettings(
     val desktopSiteDefault: Boolean = false,
     val hardwareAcceleration: Boolean = true,
     val textZoom: Int = 100,
+    // UI discoverability
+    val onboardingDone: Boolean = false,
 )
 
 /**
@@ -115,6 +117,7 @@ class SettingsRepository(private val context: Context) {
         val DESKTOP_DEFAULT = booleanPreferencesKey("desktop_site_default")
         val HARDWARE_ACCEL = booleanPreferencesKey("hardware_acceleration")
         val TEXT_ZOOM = intPreferencesKey("text_zoom")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
     }
 
     private val _settings = MutableStateFlow(BrowserSettings())
@@ -167,6 +170,7 @@ class SettingsRepository(private val context: Context) {
             desktopSiteDefault = prefs[Keys.DESKTOP_DEFAULT] ?: false,
             hardwareAcceleration = prefs[Keys.HARDWARE_ACCEL] ?: true,
             textZoom = prefs[Keys.TEXT_ZOOM] ?: 100,
+            onboardingDone = prefs[Keys.ONBOARDING_DONE] ?: false,
         )
     }
 
@@ -200,6 +204,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setDesktopSiteDefault(enabled: Boolean) = write(Keys.DESKTOP_DEFAULT, enabled)
     suspend fun setHardwareAcceleration(enabled: Boolean) = write(Keys.HARDWARE_ACCEL, enabled)
     suspend fun setTextZoom(zoom: Int) = write(Keys.TEXT_ZOOM, zoom.coerceIn(50, 200))
+    suspend fun setOnboardingDone(done: Boolean) = write(Keys.ONBOARDING_DONE, done)
 
     private suspend fun <T> write(key: Preferences.Key<T>, value: T) {
         context.settingsDataStore.edit { it[key] = value }
