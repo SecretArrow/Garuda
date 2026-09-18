@@ -42,7 +42,19 @@ class PermissionManager(private val dao: PermissionDao) {
                 true, false, Risk.LOW,
                 "READ is allowed by default (§25); no approval needed."
             )
-            ToolAction.NAVIGATE -> byRule(rule?.navigate, "NAVIGATE")
+            ToolAction.NAVIGATE -> if (rule?.navigate == false) {
+                ActionVerdict(
+                    false, false, Risk.CONFIGURABLE,
+                    "NAVIGATE is denied by the user permission rule for '$domain' (§25)."
+                )
+            } else {
+                // §25 default matrix: NAVIGATE is LOW risk — allowed without approval
+                // (explicit navigate=true rules land here too; they only re-affirm it).
+                ActionVerdict(
+                    true, false, Risk.LOW,
+                    "NAVIGATE is allowed by default (§25); no approval needed."
+                )
+            }
             ToolAction.NOTIFY -> ActionVerdict(
                 true, false, Risk.LOW,
                 "NOTIFY (local notification) is allowed by default (§25)."

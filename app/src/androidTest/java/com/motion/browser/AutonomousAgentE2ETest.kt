@@ -105,11 +105,14 @@ class AutonomousAgentE2ETest {
         ServiceLocator.agentRuntime.runGoal(goalId)
 
         // ---- 4) Verify persisted run + real page effects ----
-        val goalAfter = ServiceLocator.database.goalDao().getById(goalId)
-        assertEquals("goal must end COMPLETED", "COMPLETED", goalAfter?.status)
-
         val run = ServiceLocator.database.runDao().byGoal(goalId).first().last()
-        assertEquals("run must end SUCCESS", "SUCCESS", run.status)
+        assertEquals(
+            "run must end SUCCESS (summary=${run.resultSummary})",
+            "SUCCESS", run.status
+        )
+
+        val goalAfter = ServiceLocator.database.goalDao().getById(goalId)
+        assertEquals("goal must end COMPLETED (summary=${run.resultSummary})", "COMPLETED", goalAfter?.status)
 
         val stepTools = ServiceLocator.database.stepDao().getByRun(run.id).map { it.tool }
         assertTrue("openUrl must have executed, got: $stepTools", stepTools.contains("openUrl"))
