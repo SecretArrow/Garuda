@@ -72,8 +72,8 @@ fun SystemBarAppearanceEffect(darkTheme: Boolean) {
         applyNow()
 
         val attachListener = object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) = applyNow()
-            override fun onViewDetachedFromWindow(v: View) = Unit
+            override fun onViewAttachedToWindow(v: View) { applyNow() }
+            override fun onViewDetachedFromWindow(v: View) { }
         }
         view.addOnAttachStateChangeListener(attachListener)
 
