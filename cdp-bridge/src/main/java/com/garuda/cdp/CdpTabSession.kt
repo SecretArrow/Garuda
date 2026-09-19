@@ -124,9 +124,9 @@ class CdpTabSession(
     /** Mouse-based tap (some pages/tests require mouse semantics). */
     suspend fun dispatchClick(x: Int, y: Int) {
         val base = JSONObject().put("x", x).put("y", y).put("button", "left").put("clickCount", 1)
-        cdp.call("Input.dispatchMouseEvent", JSONObject().put("type", "mousePressed").putAll(base))
+        cdp.call("Input.dispatchMouseEvent", JSONObject(base.toString()).put("type", "mousePressed"))
         kotlinx.coroutines.delay(60)
-        cdp.call("Input.dispatchMouseEvent", JSONObject().put("type", "mouseReleased").putAll(base))
+        cdp.call("Input.dispatchMouseEvent", JSONObject(base.toString()).put("type", "mouseReleased"))
     }
 
     /** Types [text] into the currently focused element via synthesized key events. */

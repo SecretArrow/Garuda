@@ -116,7 +116,8 @@ class LocalSocketHttp(private val socketName: String) {
 
     private fun indexOfHeaderEnd(raw: ByteArray): Int? {
         for (i in 0 until raw.size - 3) {
-            if (raw[i] == 13 && raw[i + 1] == 10 && raw[i + 2] == 13 && raw[i + 3] == 10) return i
+            if (raw[i].toInt() == 13 && raw[i + 1].toInt() == 10 &&
+                raw[i + 2].toInt() == 13 && raw[i + 3].toInt() == 10) return i
         }
         return null
     }
