@@ -7,9 +7,9 @@ import com.garuda.browser.agent.action.CaptchaPipeline
 import com.garuda.browser.agent.action.HumanHandoffCaptchaPipeline
 import com.garuda.browser.agent.action.Notifier
 import com.garuda.browser.agent.llm.Presets
-import com.garuda.browser.agent.llm.ProviderChain
-import com.garuda.browser.agent.llm.ProviderChainEntry
 import com.garuda.browser.agent.runtime.AgentOrchestrator
+import com.garuda.browser.agent.runtime.ProviderChain
+import com.garuda.browser.agent.runtime.ProviderChainEntry
 import com.garuda.browser.browser.BrowserEngine
 import com.garuda.browser.data.AgentSettingsRepository
 import com.garuda.browser.data.GarudaDatabase

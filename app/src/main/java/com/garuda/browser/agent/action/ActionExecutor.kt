@@ -16,10 +16,10 @@ import java.net.URI
  */
 object ToolSchemas {
 
-    private fun schema(props: Map<String, String>, required: List<String> = emptyList()): JSONObject =
+    private fun schema(props: Map<String, JSONObject>, required: List<String> = emptyList()): JSONObject =
         JSONObject()
             .put("type", "object")
-            .put("properties", JSONObject().apply { props.forEach { (k, v) -> put(k, JSONObject(v)) } })
+            .put("properties", JSONObject().apply { props.forEach { (k, v) -> put(k, v) } })
             .put("required", JSONArray(required))
 
     private val s = { t: String -> JSONObject().put("type", t) }
