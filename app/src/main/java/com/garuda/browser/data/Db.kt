@@ -104,7 +104,7 @@ interface TaskDao {
     suspend fun firstWaitingHuman(): TaskEntity?
 
     @Query("UPDATE tasks SET status = :status, updatedAt = :now WHERE id = :id")
-    suspend fun setStatus(id: String, status: String, now: Long = System.currentTimeMillis())
+    suspend fun setStatus(id: String, status: String, now: Long)
 
     @Query("UPDATE tasks SET stepCount = :steps, promptTokens = :prompt, completionTokens = :completion, updatedAt = :now WHERE id = :id")
     suspend fun updateProgress(id: String, steps: Int, prompt: Long, completion: Long, now: Long)
@@ -113,10 +113,10 @@ interface TaskDao {
     suspend fun setCompaction(id: String, summary: String, now: Long)
 
     @Query("UPDATE tasks SET summary = :summary, status = 'DONE', finishedAt = :now, updatedAt = :now WHERE id = :id")
-    suspend fun finish(id: String, summary: String, now: Long = System.currentTimeMillis())
+    suspend fun finish(id: String, summary: String, now: Long)
 
     @Query("UPDATE tasks SET error = :error, status = :status, finishedAt = :now, updatedAt = :now WHERE id = :id")
-    suspend fun fail(id: String, error: String, status: String = "FAILED", now: Long = System.currentTimeMillis())
+    suspend fun fail(id: String, error: String, status: String, now: Long)
 
     @Query("DELETE FROM tasks WHERE id = :id")
     suspend fun delete(id: String)

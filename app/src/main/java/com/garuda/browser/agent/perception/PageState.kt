@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import com.garuda.cdp.CdpTabSession
+import com.garuda.browser.agent.action.PageControl
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -146,7 +146,7 @@ object Perception {
     """.trimIndent()
 
     /** Observes the page in [session] and returns the marked [PageState]. */
-    suspend fun observe(session: CdpTabSession): PageState {
+    suspend fun observe(session: PageControl): PageState {
         val result = session.evaluate(crawlJs)
         val json = runCatching { JSONObject(result.optString("value", "{}")) }
             .getOrElse { JSONObject() }

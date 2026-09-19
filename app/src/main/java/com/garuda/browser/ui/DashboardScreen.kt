@@ -126,7 +126,7 @@ private fun TaskList(modifier: Modifier = Modifier) {
                             "PAUSED" -> {
                                 IconButton(onClick = {
                                     CoroutineScope(Dispatchers.IO).launch {
-                                        ServiceLocator.database.taskDao().setStatus(task.id, "QUEUED")
+                                        ServiceLocator.database.taskDao().setStatus(task.id, "QUEUED", System.currentTimeMillis())
                                     }
                                     ServiceLocator.orchestrator?.launch(
                                         task.id,

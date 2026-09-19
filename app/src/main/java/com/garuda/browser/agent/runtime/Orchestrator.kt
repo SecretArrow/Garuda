@@ -74,14 +74,14 @@ class AgentOrchestrator(
     /** Gateway wired into ActionExecutor: pauses the task until the user answers. */
     inner class TaskApprovalGateway(private val taskId: String) : ApprovalGateway {
         override suspend fun requestApproval(taskId: String, question: String, detail: String): Boolean {
-            db.taskDao().setStatus(taskId, "WAITING_HUMAN")
+            db.taskDao().setStatus(taskId, "WAITING_HUMAN", System.currentTimeMillis())
             notifier.notify("warn", "Garuda needs you", question)
             audit(taskId, "human", "approval requested", question.take(300), false)
             val deferred = CompletableDeferred<Boolean>()
             pendingApprovals[taskId] = deferred
             val allowed = runCatching { deferred.await() }.getOrDefault(false)
             pendingApprovals.remove(taskId)
-            db.taskDao().setStatus(taskId, "RUNNING")
+            db.taskDao().setStatus(taskId, "RUNNING", System.currentTimeMillis())
             return allowed
         }
     }
@@ -93,16 +93,22 @@ class AgentOrchestrator(
     }
 
     fun pause(taskId: String) {
-        db.taskDao().setStatus(taskId, "PAUSED")
         runningTasks[taskId]?.cancel()
         runningTasks.remove(taskId)
+        val now = System.currentTimeMillis()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { db.taskDao().setStatus(taskId, "PAUSED", now) }
+        }
     }
 
     fun stop(taskId: String) {
         pendingApprovals[taskId]?.complete(false)
         runningTasks[taskId]?.cancel()
         runningTasks.remove(taskId)
-        db.taskDao().fail(taskId, "stopped by user", status = "STOPPED")
+        val now = System.currentTimeMillis()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { db.taskDao().fail(taskId, "stopped by user", "STOPPED", now) }
+        }
     }
 
     /** Enqueues (or resumes) a task and starts its loop. */
@@ -121,9 +127,9 @@ class AgentOrchestrator(
     private suspend fun runTask(taskId: String) {
         val settings = settingsProvider()
         var task = db.taskDao().byId(taskId) ?: return
-        db.taskDao().setStatus(taskId, "PLANNING")
+        db.taskDao().setStatus(taskId, "PLANNING", System.currentTimeMillis())
         val session = runCatching { sessionFor(task.tabKey) }.getOrElse {
-            db.taskDao().fail(taskId, "no browser session: ${it.message}")
+            db.taskDao().fail(taskId, "no browser session: ${it.message}", "FAILED", System.currentTimeMillis())
             return
         }
 
@@ -141,15 +147,15 @@ class AgentOrchestrator(
         )
 
         val chain = runCatching { chainFor() }.getOrElse {
-            db.taskDao().fail(taskId, "no LLM provider configured")
+            db.taskDao().fail(taskId, "no LLM provider configured", "FAILED", System.currentTimeMillis())
             return
         }
         if (chain.entries.isEmpty()) {
-            db.taskDao().fail(taskId, "no LLM provider configured")
+            db.taskDao().fail(taskId, "no LLM provider configured", "FAILED", System.currentTimeMillis())
             return
         }
 
-        db.taskDao().setStatus(taskId, "RUNNING")
+        db.taskDao().setStatus(taskId, "RUNNING", System.currentTimeMillis())
         stepSeq[taskId] = AtomicInteger(task.stepCount)
 
         var providerIndex = 0
@@ -166,17 +172,20 @@ class AgentOrchestrator(
 
                 // ---- budget guards (plan 6A) -------------------------------
                 if (current.stepCount >= current.maxSteps) {
-                    db.taskDao().fail(taskId, "step budget exhausted (${current.maxSteps})")
+                    db.taskDao().fail(taskId, "step budget exhausted (${current.maxSteps})", "FAILED", System.currentTimeMillis())
                     break
                 }
                 if (promptTokens + completionTokens > settings.tokenBudgetPerTask) {
-                    db.taskDao().fail(taskId, "token budget exhausted")
+                    db.taskDao().fail(taskId, "token budget exhausted", "FAILED", System.currentTimeMillis())
                     break
                 }
 
                 // ---- 1. perceive --------------------------------------------
-                val state = runCatching { Perception.observe(session.page()) }.getOrElse {
-                    db.taskDao().fail(taskId, "perceive failed: ${it.message}")
+                val perceiveResult = runCatching { Perception.observe(session.page()) }
+                val state = perceiveResult.getOrNull()
+                if (state == null) {
+                    val err = perceiveResult.exceptionOrNull()
+                    db.taskDao().fail(taskId, "perceive failed: ${err?.message}", "FAILED", System.currentTimeMillis())
                     break
                 }
                 latestState[taskId] = state
@@ -234,7 +243,7 @@ class AgentOrchestrator(
                         continue
                     }
                     if (providerFailures >= 6) {
-                        db.taskDao().fail(taskId, llmError ?: "LLM produced no tool call")
+                        db.taskDao().fail(taskId, llmError ?: "LLM produced no tool call", "FAILED", System.currentTimeMillis())
                         break
                     }
                     messages.add(LlmMessage("assistant", textBuffer.toString()))
@@ -252,7 +261,7 @@ class AgentOrchestrator(
                 recentActionSignatures.addLast(sig)
                 if (recentActionSignatures.size > 3) recentActionSignatures.removeFirst()
                 if (recentActionSignatures.size == 3 && recentActionSignatures.toSet().size == 1) {
-                    db.taskDao().fail(taskId, "stuck: repeated identical action 3x ($sig)")
+                    db.taskDao().fail(taskId, "stuck: repeated identical action 3x ($sig)", "FAILED", System.currentTimeMillis())
                     break
                 }
 
@@ -276,7 +285,7 @@ class AgentOrchestrator(
                 val steps = stepSeq[taskId]?.get() ?: current.stepCount + 1
                 db.taskDao().updateProgress(taskId, steps, promptTokens, completionTokens)
                 if (call.name == "finish") {
-                    db.taskDao().finish(taskId, result.summary)
+                    db.taskDao().finish(taskId, result.summary, System.currentTimeMillis())
                     notifier.notify("info", "Garuda task done", result.summary.take(120))
                     break
                 }
@@ -289,9 +298,9 @@ class AgentOrchestrator(
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             val status = db.taskDao().byId(taskId)?.status
-            if (status == "RUNNING") db.taskDao().setStatus(taskId, "PAUSED")
+            if (status == "RUNNING") db.taskDao().setStatus(taskId, "PAUSED", System.currentTimeMillis())
         } catch (e: Exception) {
-            db.taskDao().fail(taskId, "crash: ${e.message}".take(300))
+            db.taskDao().fail(taskId, "crash: ${e.message}".take(300), "FAILED", System.currentTimeMillis())
         } finally {
             runningTasks.remove(taskId)
             latestState.remove(taskId)
