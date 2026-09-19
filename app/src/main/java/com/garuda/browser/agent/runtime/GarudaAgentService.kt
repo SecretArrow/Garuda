@@ -63,7 +63,7 @@ class GarudaAgentService : Service() {
      * them through the orchestrator; re-enqueues after reboot via BOOT receiver.
      */
     private suspend fun pump() {
-        while (isActive) {
+        while (kotlin.coroutines.coroutineContext.isActive) {
             runCatching {
                 val orchestrator = ServiceLocator.orchestrator ?: return@runCatching
                 val tasks = ServiceLocator.database.taskDao().unfinished()

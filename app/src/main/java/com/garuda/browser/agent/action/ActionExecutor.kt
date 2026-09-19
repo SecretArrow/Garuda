@@ -120,7 +120,8 @@ class ActionExecutor(
         }
     }
 
-    private suspend fun dispatch(name: String, args: JSONObject, state: PageState?): ActionResult = when (name) {
+    private suspend fun dispatch(name: String, args: JSONObject, state: PageState?): ActionResult {
+        return when (name) {
         "navigate" -> {
             val url = args.getString("url")
             page().navigate(url)
@@ -184,6 +185,7 @@ class ActionExecutor(
         }
         "finish" -> ActionResult(true, args.getString("summary"), changed = true)
         else -> ActionResult(false, "unknown tool $name")
+        }
     }
 
     // ------------------------------------------------------------- internals
@@ -265,7 +267,7 @@ class ActionExecutor(
               const el = document.querySelector('[${com.garuda.browser.agent.perception.Perception.MARK_ATTR}="$markId"]');
               if (!el || el.tagName !== 'SELECT') return false;
               const opts = Array.from(el.options);
-              const target = opts.find(o => o.value === $jsonString(value) || o.text.trim() === $jsonString(value));
+              const target = opts.find(o => o.value === ${jsonString(value)} || o.text.trim() === ${jsonString(value)});
               if (!target) return false;
               el.value = target.value;
               el.dispatchEvent(new Event('change', {bubbles: true}));
@@ -301,7 +303,7 @@ class ActionExecutor(
             "(()=>{const el=document.querySelector('[${Perception.MARK_ATTR}=\"$markId\"]');return el?String($attrJs).slice(0,4000):''})()"
         } else if (selector.isNotBlank()) {
             val attrJs = if (attribute == "text") "el.innerText" else "el.getAttribute('$attribute')"
-            "(()=>{const el=document.querySelector($jsonString(selector));return el?String($attrJs).slice(0,4000):''})()"
+            "(()=>{const el=document.querySelector(${jsonString(selector)});return el?String($attrJs).slice(0,4000):''})()"
         } else return ActionResult(false, "extract needs markId or selector")
         val value = page().evaluate(expr).optString("value")
         return ActionResult(value.isNotBlank(), "extracted ${value.length} chars", data = value)
