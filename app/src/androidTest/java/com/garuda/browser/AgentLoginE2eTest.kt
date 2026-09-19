@@ -11,8 +11,8 @@ import com.garuda.browser.agent.action.Notifier
 import com.garuda.browser.agent.llm.LlmMessage
 import com.garuda.browser.agent.llm.LlmProvider
 import com.garuda.browser.agent.llm.LlmRequest
-import com.garuda.browser.agent.llm.ProviderChain
-import com.garuda.browser.agent.llm.ProviderChainEntry
+import com.garuda.browser.agent.runtime.ProviderChain
+import com.garuda.browser.agent.runtime.ProviderChainEntry
 import com.garuda.browser.agent.llm.StreamEvent
 import com.garuda.browser.agent.llm.ToolCallRequest
 import com.garuda.browser.agent.runtime.AgentOrchestrator
