@@ -151,7 +151,7 @@ interface ProviderDao {
     suspend fun allOnce(): List<ProviderEntity>
 
     @Query("SELECT * FROM providers WHERE isDefault = 1 LIMIT 1")
-    suspend fun default(): ProviderEntity?
+    suspend fun defaultProvider(): ProviderEntity?
 
     @Query("UPDATE providers SET isDefault = CASE WHEN id = :id THEN 1 ELSE 0 END")
     suspend fun setDefault(id: String)

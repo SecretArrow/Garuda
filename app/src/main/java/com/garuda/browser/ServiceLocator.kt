@@ -92,7 +92,7 @@ object ServiceLocator {
     /** Default provider + fallback chain (plan Prompt 5 §7). */
     suspend fun providerChain(): ProviderChain {
         val dao = database.providerDao()
-        val def = dao.default() ?: return ProviderChain(emptyList())
+        val def = dao.defaultProvider() ?: return ProviderChain(emptyList())
         val entries = mutableListOf(
             ProviderChainEntry(
                 provider = Presets.adapterFor(def.protocol) { def.baseUrl },
