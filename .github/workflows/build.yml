@@ -1,0 +1,207 @@
+name: Garuda CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: garuda-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Lint + Unit Tests + Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Compute version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "GARUDA_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+            echo "GARUDA_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
+          else
+            echo "GARUDA_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
+            echo "GARUDA_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          fi
+      - name: Lint + unit tests + debug build
+        run: ./gradlew :app:lintDebug :app:testDebugUnitTest :cdp-bridge:test :app:assembleDebug --stacktrace
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+
+  instrumented:
+    name: Emulator Smoke Tests (install + launch + FATAL check)
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+        with: { cache-read-only: false }
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-garuda
+      - name: Build test APKs
+        run: ./gradlew :app:assembleDebug :app:assembleAndroidTest
+      - name: Run emulator tests (real CDP + agent E2E)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb logcat -c
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace
+            echo "=== CDP/AGENT MARKERS ==="
+            adb logcat -d | grep -E "CDP|GARUDA|FATAL" | tail -50 || true
+      - name: Anti-crash gate (logcat FATAL scan)
+        if: always()
+        run: |
+          adb logcat -d > emulator_logcat.txt || true
+          if grep -E "FATAL EXCEPTION" emulator_logcat.txt; then
+            echo "::error::FATAL exception found in emulator logcat"
+            grep -A 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60
+            exit 1
+          fi
+          echo "No FATAL exceptions — anti-crash gate passed"
+      - name: Upload emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-evidence
+          path: emulator_logcat.txt
+
+  release:
+    name: Release APK (split per ABI) + AAB
+    runs-on: ubuntu-latest
+    needs: [quality, instrumented]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Compute version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "GARUDA_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+            echo "GARUDA_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
+          else
+            echo "GARUDA_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
+            echo "GARUDA_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+          fi
+      - name: Build signed release artifacts
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
+      - name: Collect per-ABI APKs
+        run: |
+          mkdir -p dist
+          for APK in app/build/outputs/apk/release/*.apk; do
+            BASE=$(basename "$APK")
+            case "$BASE" in
+              *arm64-v8a*) NAME="Garuda-${GARUDA_VERSION_NAME}-arm64-v8a.apk";;
+              *armeabi-v7a*) NAME="Garuda-${GARUDA_VERSION_NAME}-armeabi-v7a.apk";;
+              *x86_64*) NAME="Garuda-${GARUDA_VERSION_NAME}-x86_64.apk";;
+              *x86*) NAME="Garuda-${GARUDA_VERSION_NAME}-x86.apk";;
+              *universal*) NAME="Garuda-${GARUDA_VERSION_NAME}-universal.apk";;
+              *) NAME="$BASE";;
+            esac
+            cp "$APK" "dist/$NAME"
+          done
+          ls -la dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-apks
+          path: dist/
+
+  publish:
+    name: Publish GitHub Release (per-ABI APKs)
+    runs-on: ubuntu-latest
+    needs: [release, instrumented]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: release-apks, path: dist }
+      - name: Resolve release target
+        id: target
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+            echo "prerelease=--prerelease=false" >> $GITHUB_OUTPUT
+            echo "title=Garuda ${GITHUB_REF_NAME#v} (stable)" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "prerelease=--prerelease" >> $GITHUB_OUTPUT
+            echo "title=Garuda latest (dev rolling — 0.1.${{ github.run_number }})" >> $GITHUB_OUTPUT
+          fi
+      - name: Remove old rolling release
+        if: steps.target.outputs.tag == 'latest'
+        run: |
+          gh release view latest --json id -q .id 2>/dev/null && \
+            gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Publish
+        run: |
+          NOTES=$(cat <<'EOF'
+          ## Garuda — Autonomous Android Browser (agent-layer phase)
+
+          ### Install
+          | File | Device |
+          |---|---|
+          | `arm64-v8a` | Most modern phones |
+          | `armeabi-v7a` | Older 32-bit phones |
+          | `x86_64` | Emulators / x86 tablets |
+          | `x86` | Legacy x86 |
+          | `universal` | Unsure? pick this |
+
+          ### What is inside
+          - CDP bridge: self-connect to the in-process DevTools socket, trusted input (isTrusted:true)
+          - Agent orchestrator: perceive → LLM → execute → verify, budgets, compaction, checkpoint/resume
+          - Multi-LLM gateway: OpenAI/Anthropic/Gemini/Groq/OpenRouter/DeepSeek/Mistral/xAI/z.ai/Ollama + auto-detect
+          - Foreground service: task queue, scheduler, pause/stop, boot auto-resume
+          - UI: browser shell, chat drawer, dashboard (audit log, token cost), settings
+
+          The Brave/Chromium fork track (DevTools socket @garuda-devtools) lives in `fork/` — see its README.
+          EOF
+          )
+          if [[ "${{ steps.target.outputs.tag }}" == "latest" ]]; then
+            gh release create latest dist/* \
+              --title "${{ steps.target.outputs.title }}" \
+              --notes "$NOTES" \
+              --prerelease
+          else
+            gh release create "${{ steps.target.outputs.tag }}" dist/* \
+              --title "${{ steps.target.outputs.title }}" \
+              --notes "$NOTES"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
