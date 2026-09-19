@@ -283,7 +283,7 @@ class AgentOrchestrator(
 
                 // ---- 6. bookkeeping + finish --------------------------------
                 val steps = stepSeq[taskId]?.get() ?: current.stepCount + 1
-                db.taskDao().updateProgress(taskId, steps, promptTokens, completionTokens)
+                db.taskDao().updateProgress(taskId, steps, promptTokens, completionTokens, System.currentTimeMillis())
                 if (call.name == "finish") {
                     db.taskDao().finish(taskId, result.summary, System.currentTimeMillis())
                     notifier.notify("info", "Garuda task done", result.summary.take(120))
