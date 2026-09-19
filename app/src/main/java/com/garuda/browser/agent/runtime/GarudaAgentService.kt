@@ -70,7 +70,7 @@ class GarudaAgentService : Service() {
                 val tasks = ServiceLocator.database.taskDao().unfinished()
                 val queued = tasks.filter { it.status == "QUEUED" }
                 val running = tasks.filter { it.status == "RUNNING" || it.status == "PLANNING" }
-                val settings = ServiceLocator.agentSettings.first()
+                val settings = ServiceLocator.agentSettings.settings.first()
                 val capacity = (settings.maxParallelTabs - running.size).coerceAtLeast(0)
                 queued.take(capacity).forEach { task ->
                     ServiceLocator.setActiveTaskId(task.id)

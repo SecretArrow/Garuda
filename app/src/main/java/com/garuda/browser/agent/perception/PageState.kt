@@ -184,7 +184,7 @@ object Perception {
     }
 
     /** Refreshes one element's on-screen rect (after scroll) by re-running the crawl. */
-    suspend fun reobserve(session: CdpTabSession): PageState = observe(session)
+    suspend fun reobserve(session: PageControl): PageState = observe(session)
 }
 
 /**

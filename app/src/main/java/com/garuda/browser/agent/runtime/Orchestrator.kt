@@ -350,7 +350,7 @@ class AgentOrchestrator(
             }
         }
         if (summary.isNotBlank()) {
-            db.taskDao().setCompaction(taskId, summary.take(2000))
+            db.taskDao().setCompaction(taskId, summary.take(2000), System.currentTimeMillis())
             audit(taskId, "compact", "context", "${digest.length} chars → ${summary.length} chars", true)
         }
     }
