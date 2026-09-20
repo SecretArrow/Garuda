@@ -41,6 +41,7 @@ class BrowserEngine(private val context: Context) {
 
     val activeTab: GarudaTab? get() = tabs.getOrNull(activeIndex)
 
+    @Synchronized
     fun createTab(url: String = "about:blank"): GarudaTab {
         val webView = WebView(context).apply {
             settings.javaScriptEnabled = true
@@ -64,15 +65,20 @@ class BrowserEngine(private val context: Context) {
         return tab
     }
 
+    @Synchronized
     fun closeTab(index: Int): Boolean {
         if (index < 0 || index >= tabs.size) return false
         val tab = tabs.removeAt(index)
         tab.cdpSession?.close()
-        runCatching { tab.webView.destroy() }
+        // WebView.destroy must run on the thread that owns the WebView (main).
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            runCatching { tab.webView.destroy() }
+        }
         if (activeIndex >= tabs.size) activeIndex = (tabs.size - 1).coerceAtLeast(0)
         return true
     }
 
+    @Synchronized
     fun switchTo(index: Int): Boolean {
         if (index < 0 || index >= tabs.size) return false
         activeIndex = index
@@ -83,14 +89,15 @@ class BrowserEngine(private val context: Context) {
      * Resolves the CDP target for a tab and connects a persistent session.
      * Targets are matched by URL (WebView's /json/list does not expose a direct
      * WebView↔target link); the fork patch will expose per-tab sockets directly.
+     * The URL read is a WebView method call — must run on the main thread.
      */
     suspend fun cdpSessionFor(tab: GarudaTab): CdpTabSession = resolveMutex.withLock {
         tab.cdpSession?.let { return it }
         val client = withContext(Dispatchers.IO) {
             DevToolsClient.autoDiscover() ?: error("DevTools socket not live")
         }
+        val tabUrl = withContext(Dispatchers.Main) { tab.webView.url.orEmpty() }
         val targets = withContext(Dispatchers.IO) { client.listTargets() }
-        val tabUrl = tab.webView.url.orEmpty()
         val target = targets.firstOrNull { it.url == tabUrl }
             ?: targets.firstOrNull { it.url.isNotBlank() && tabUrl.isNotBlank() && it.url == tabUrl.substringBefore('#') }
             ?: targets.firstOrNull()
