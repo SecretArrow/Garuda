@@ -36,9 +36,11 @@ class CdpTrustedInputTest {
                 if (client != null) {
                     val attached = runCatching { engine.cdpSessionFor(tab) }
                     if (attached.isSuccess) return@withTimeout attached.getOrNull()
-                    lastProbe = "attach failed: ${attached.exceptionOrNull()?.message}"
+                    val e = attached.exceptionOrNull()
+                    lastProbe = "attach failed: ${e?.javaClass?.name}: ${e?.message} @ ${e?.stackTrace?.firstOrNull()}" +
+                        " | " + com.garuda.cdp.DevToolsLocator.diagnostics()
                 } else {
-                    lastProbe = com.garuda.cdp.DevToolsLocator.diagnostics()
+                    lastProbe = "no socket: " + com.garuda.cdp.DevToolsLocator.diagnostics()
                 }
                 if (attempt % 15 == 1) {
                     println("GARUDA_DIAG attempt=$attempt $lastProbe")
