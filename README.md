@@ -1,4 +1,4 @@
-# Garuda — Autonomous Android Browser
+# Motion Browser — Autonomous Android Browser
 
 Browser Android **autonomous**: task berbahasa natural dieksekusi browser —
 klik, isi form, scraping, monitoring — dijalankan agent yang berjalan terus di
@@ -15,7 +15,7 @@ Chrome DevTools Protocol (CDP), bukan JS injection naik.
 
 Prinsip: prototipe agent layer jalan di app WebView SEKARANG (socket
 `@webview_devtools_remote_<pid>`), dan otomatis berpindah ke fork saat socket
-`@garuda-devtools` tersedia — `DevToolsLocator` memprioritaskannya.
+`@motion-devtools` tersedia — `DevToolsLocator` memprioritaskannya.
 
 ## Struktur
 
@@ -63,7 +63,7 @@ fork/                  Kit build Brave fork (Fase 0–1)
 3. (Opsional) Detect → cek model list + latensi
 4. Buka agent chat (ikon 🤖) → tulis tugas → Run
 5. Lihat progres live di drawer / tab Tasks (audit + token)
-6. Untuk HP Xiaomi/Oppo: Settings → Battery optimization → exempt Garuda
+6. Untuk HP Xiaomi/Oppo: Settings → Battery optimization → exempt Motion Browser
 
 ## Catatan
 

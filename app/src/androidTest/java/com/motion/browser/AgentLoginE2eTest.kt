@@ -1,0 +1,165 @@
+package com.motion.browser
+
+import androidx.room.Room
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.motion.browser.agent.action.ActionExecutor
+import com.motion.browser.agent.action.CdpPageControl
+import com.motion.browser.agent.action.DomainRateLimiter
+import com.motion.browser.agent.action.HumanHandoffCaptchaPipeline
+import com.motion.browser.agent.action.Notifier
+import com.motion.browser.agent.llm.LlmMessage
+import com.motion.browser.agent.llm.LlmProvider
+import com.motion.browser.agent.llm.LlmRequest
+import com.motion.browser.agent.runtime.ProviderChain
+import com.motion.browser.agent.runtime.ProviderChainEntry
+import com.motion.browser.agent.llm.StreamEvent
+import com.motion.browser.agent.llm.ToolCallRequest
+import com.motion.browser.agent.runtime.AgentOrchestrator
+import com.motion.browser.agent.runtime.AgentSession
+import com.motion.browser.browser.BrowserEngine
+import com.motion.browser.data.AgentSettings
+import com.motion.browser.data.MotionDatabase
+import com.motion.browser.data.TaskEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Full agent E2E on a real page (plan Prompt 4 + 6 acceptance): a scripted
+ * provider drives the orchestrator through perceive → type → type → click →
+ * finish on a real WebView via real CDP trusted input. Login must succeed.
+ */
+@RunWith(AndroidJUnit4::class)
+class AgentLoginE2eTest {
+
+    /** Scripted "LLM": inspects the latest page state and decides like an agent. */
+    private class ScriptedProvider : LlmProvider {
+        override val protocol = "scripted"
+        var step = 0
+
+        override suspend fun chat(request: LlmRequest, apiKey: String?): Flow<StreamEvent> = flow {
+            val lastPage = request.messages.lastOrNull()?.content.orEmpty()
+            val markFor: (predicate: (String) -> Boolean) -> String? = { predicate ->
+                Regex("e\\d+ (INPUT|TEXTAREA)[^\\n]*")
+                    .findAll(lastPage)
+                    .map { it.value }
+                    .firstOrNull(predicate)
+                    ?.substringBefore(' ')
+            }
+            val user = markFor { it.contains("TEXT") || it.contains("text=") }
+                ?: markFor { it.contains("ph=\"Username\"") }
+            val pass = markFor { it.contains("password") || it.contains("ph=\"Password\"") }
+            val login = Regex("e\\d+ BUTTON[^\n]*\"[^\"]*[Ll]og in[^\"]*\"").findAll(lastPage)
+                .map { it.value.substringBefore(' ') }.firstOrNull()
+                ?: Regex("e\\d+ BUTTON").findAll(lastPage).map { it.value.substringBefore(' ') }.firstOrNull()
+
+            when (step++) {
+                0 -> emit(StreamEvent.ToolCall(ToolCallRequest("c0", "type",
+                    JSONObject().put("markId", user ?: "e2").put("text", "motion").toString())))
+                1 -> emit(StreamEvent.ToolCall(ToolCallRequest("c1", "type",
+                    JSONObject().put("markId", pass ?: "e3").put("text", "hunter2").toString())))
+                2 -> emit(StreamEvent.ToolCall(ToolCallRequest("c2", "click",
+                    JSONObject().put("markId", login ?: "e4").toString())))
+                else -> emit(StreamEvent.ToolCall(ToolCallRequest("c3", "finish",
+                    JSONObject().put("summary", "Logged into Acme Portal as motion").toString())))
+            }
+        }
+
+        override suspend fun listModels(baseUrl: String, apiKey: String?) = listOf("scripted")
+    }
+
+    @Test
+    fun agentCompletesLoginOnRealPage() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val db = Room.inMemoryDatabaseBuilder(context, MotionDatabase::class.java)
+            .allowMainThreadQueries().build()
+        val engine = ServiceLocator.browser
+        val tab = withContext(Dispatchers.Main) {
+            engine.createTab("file:///android_asset/login.html")
+        }
+        androidx.test.core.app.ActivityScenario.launch(
+            com.motion.browser.MainActivity::class.java
+        )
+
+        val session = com.motion.browser.CdpTrustedInputTest.attachSessionWithDiagnostics(engine, tab)
+        assertTrue("CDP session required — ${com.motion.cdp.DevToolsLocator.diagnostics()}", session != null)
+        session!!.waitForLoad(15_000)
+
+        val agentSession = object : AgentSession {
+            override suspend fun page() = CdpPageControl(session!!)
+            override val tabOps: ActionExecutor.TabOps = object : ActionExecutor.TabOps {
+                override suspend fun openTab(url: String): Int { engine.createTab(url); return engine.tabs.size - 1 }
+                override suspend fun switchTo(index: Int): Boolean = engine.switchTo(index)
+                override suspend fun closeTab(index: Int?): Boolean = engine.closeTab(index ?: engine.activeIndex)
+                override suspend fun currentTabIndex(): Int = engine.activeIndex
+            }
+        }
+
+        val orchestrator = AgentOrchestrator(
+            db = db,
+            settingsProvider = { AgentSettings(requireConfirmRisky = false, minActionIntervalMs = 100) },
+            sessionFor = { agentSession },
+            chainFor = { ProviderChain(listOf(ProviderChainEntry(ScriptedProvider(), "scripted-1", null))) },
+            approvals = { _, _, _ -> true },
+            notifier = { _, _, _ -> },
+            captcha = HumanHandoffCaptchaPipeline { _, _, _ -> },
+        )
+
+        val taskId = "e2e_login"
+        val now = System.currentTimeMillis()
+        db.taskDao().insert(TaskEntity(id = taskId, goal = "Log into the Acme Portal test page",
+            status = "QUEUED", createdAt = now, updatedAt = now, tabKey = tab.id, maxSteps = 25))
+
+        orchestrator.launch(taskId, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO))
+
+        // Poll until the task finishes (or fails with the audit trail in the error).
+        withTimeout(120_000) {
+            var lastSeq = 0
+            var task = db.taskDao().byId(taskId)!!
+            while (task.status !in listOf("DONE", "FAILED", "STOPPED")) {
+                kotlinx.coroutines.delay(400)
+                db.stepDao().forTask(taskId).filter { it.seq > lastSeq }.forEach {
+                    lastSeq = it.seq
+                    println("MOTION_E2E #${it.seq} ${it.kind}/${it.label}: ${it.detail.take(130)}")
+                }
+                task = db.taskDao().byId(taskId)!!
+            }
+            println("MOTION_E2E final status=${task.status} summary=${task.summary} error=${task.error}")
+            assertEquals("Task must finish successfully; error=${task.error}", "DONE", task.status)
+            assertTrue("Summary must mention login", task.summary.orEmpty().contains("Logged"))
+        }
+
+        // Verify the page state: real trusted login happened.
+        val loggedIn = session!!.evaluate("window.__loggedIn === true").optBoolean("value", false)
+        if (!loggedIn) {
+            val userVal = session.evaluate("document.getElementById('user')?.value").optString("value")
+            val passVal = session.evaluate("document.getElementById('pass')?.value").optString("value")
+            val dump = db.stepDao().forTask(taskId).joinToString("\n") {
+                "  ${it.kind}/${it.label}: ${it.detail.take(90)}"
+            }
+            assertEquals(
+                "Agent must have logged in via trusted input" +
+                    " [user='$userVal' pass='$passVal'] steps:\n$dump",
+                true, loggedIn,
+            )
+        }
+        val welcome = session.evaluate("document.getElementById('result').textContent").optString("value")
+        assertEquals("Welcome, Motion Browser!", welcome)
+
+        val steps = db.stepDao().forTask(taskId)
+        assertTrue("Audit trail must contain actions", steps.any { it.kind == "action" })
+        session.close()
+        db.close()
+        Unit
+    }
+}

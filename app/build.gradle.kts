@@ -6,17 +6,17 @@ plugins {
 }
 
 android {
-    namespace = "com.garuda.browser"
+    namespace = "com.motion.browser"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.garuda.browser"
+        applicationId = "com.motion.browser"
         minSdk = 29
         targetSdk = 34
-        // CI injects GARUDA_VERSION_CODE / GARUDA_VERSION_NAME (run number or v* tag).
-        versionCode = System.getenv("GARUDA_VERSION_CODE")?.toIntOrNull() ?: 1
-        versionName = System.getenv("GARUDA_VERSION_NAME") ?: "0.1.0"
-        testInstrumentationRunner = "com.garuda.browser.HookTestRunner"
+        // CI injects MOTION_VERSION_CODE / MOTION_VERSION_NAME (run number or v* tag).
+        versionCode = System.getenv("MOTION_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("MOTION_VERSION_NAME") ?: "0.1.0"
+        testInstrumentationRunner = "com.motion.browser.HookTestRunner"
     }
 
     buildTypes {

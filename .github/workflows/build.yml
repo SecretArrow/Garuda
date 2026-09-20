@@ -1,4 +1,4 @@
-name: Garuda CI
+name: Motion Browser CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: garuda-${{ github.ref }}
+  group: motion-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -23,11 +23,11 @@ jobs:
       - name: Compute version
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "GARUDA_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-            echo "GARUDA_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
+            echo "MOTION_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
           else
-            echo "GARUDA_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
-            echo "GARUDA_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
           fi
       - name: Lint + unit tests + debug build
         run: ./gradlew :app:lintDebug :app:testDebugUnitTest :cdp-bridge:test :app:assembleDebug --stacktrace
@@ -63,7 +63,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-34-garuda
+          key: avd-34-motion
       - name: Build test APKs
         run: ./gradlew :app:assembleDebug :app:assembleAndroidTest
       - name: Run emulator tests (real CDP + agent E2E)
@@ -82,7 +82,7 @@ jobs:
             adb shell cat /proc/net/unix | grep -i devtools || echo "(none visible)";
             adb logcat -d > emulator_logcat.txt || true;
             echo "=== CDP/AGENT MARKERS ===";
-            grep -aE "GARUDA_DIAG|GARUDA_E2E" emulator_logcat.txt | tail -40 || true;
+            grep -aE "MOTION_DIAG|MOTION_E2E" emulator_logcat.txt | tail -40 || true;
             grep -aq "FATAL EXCEPTION" emulator_logcat.txt && { echo "::error::FATAL exception in logcat"; grep -aA 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60; exit 1; } || echo "No FATAL exceptions - anti-crash gate passed";
             exit ${TEST_EXIT:-0}
       - name: Upload emulator evidence
@@ -105,11 +105,11 @@ jobs:
       - name: Compute version
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "GARUDA_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
-            echo "GARUDA_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
+            echo "MOTION_VERSION_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_CODE=$(git rev-list --count HEAD)" >> $GITHUB_ENV
           else
-            echo "GARUDA_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
-            echo "GARUDA_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_NAME=0.1.${{ github.run_number }}" >> $GITHUB_ENV
+            echo "MOTION_VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
           fi
       - name: Build signed release artifacts
         run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
@@ -119,11 +119,11 @@ jobs:
           for APK in app/build/outputs/apk/release/*.apk; do
             BASE=$(basename "$APK")
             case "$BASE" in
-              *arm64-v8a*) NAME="Garuda-${GARUDA_VERSION_NAME}-arm64-v8a.apk";;
-              *armeabi-v7a*) NAME="Garuda-${GARUDA_VERSION_NAME}-armeabi-v7a.apk";;
-              *x86_64*) NAME="Garuda-${GARUDA_VERSION_NAME}-x86_64.apk";;
-              *x86*) NAME="Garuda-${GARUDA_VERSION_NAME}-x86.apk";;
-              *universal*) NAME="Garuda-${GARUDA_VERSION_NAME}-universal.apk";;
+              *arm64-v8a*) NAME="MotionBrowser-${MOTION_VERSION_NAME}-arm64-v8a.apk";;
+              *armeabi-v7a*) NAME="MotionBrowser-${MOTION_VERSION_NAME}-armeabi-v7a.apk";;
+              *x86_64*) NAME="MotionBrowser-${MOTION_VERSION_NAME}-x86_64.apk";;
+              *x86*) NAME="MotionBrowser-${MOTION_VERSION_NAME}-x86.apk";;
+              *universal*) NAME="MotionBrowser-${MOTION_VERSION_NAME}-universal.apk";;
               *) NAME="$BASE";;
             esac
             cp "$APK" "dist/$NAME"
@@ -151,11 +151,11 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
             echo "prerelease=--prerelease=false" >> $GITHUB_OUTPUT
-            echo "title=Garuda ${GITHUB_REF_NAME#v} (stable)" >> $GITHUB_OUTPUT
+            echo "title=Motion Browser ${GITHUB_REF_NAME#v} (stable)" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
             echo "prerelease=--prerelease" >> $GITHUB_OUTPUT
-            echo "title=Garuda latest (dev rolling — 0.1.${{ github.run_number }})" >> $GITHUB_OUTPUT
+            echo "title=Motion Browser latest (dev rolling — 0.1.${{ github.run_number }})" >> $GITHUB_OUTPUT
           fi
       - name: Remove old rolling release
         if: steps.target.outputs.tag == 'latest'
@@ -167,7 +167,7 @@ jobs:
       - name: Publish
         run: |
           NOTES=$(cat <<'EOF'
-          ## Garuda — Autonomous Android Browser (agent-layer phase)
+          ## Motion Browser — Autonomous Android Browser (agent-layer phase)
 
           ### Install
           | File | Device |
@@ -185,7 +185,7 @@ jobs:
           - Foreground service: task queue, scheduler, pause/stop, boot auto-resume
           - UI: browser shell, chat drawer, dashboard (audit log, token cost), settings
 
-          The Brave/Chromium fork track (DevTools socket @garuda-devtools) lives in `fork/` — see its README.
+          The Brave/Chromium fork track (DevTools socket @motion-devtools) lives in `fork/` — see its README.
           EOF
           )
           if [[ "${{ steps.target.outputs.tag }}" == "latest" ]]; then

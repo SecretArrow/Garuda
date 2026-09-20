@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Garuda"
+rootProject.name = "MotionBrowser"
 include(":app")
 include(":cdp-bridge")

@@ -1,4 +1,4 @@
-# Garuda Architecture
+# Motion Browser Architecture
 
 Plan Pack §2 layered map, mapped to code:
 
@@ -21,7 +21,7 @@ Plan Pack §2 layered map, mapped to code:
 │ cdp-bridge: abstract unix socket → HTTP → WebSocket →   │  cdp-bridge/
 │ CDP domains (Page/Runtime/DOMSnapshot/Input/Net/Emul)   │
 ├─────────────────────────────────────────────────────────┤
-│ ENGINE: WebView (prototype) | Brave fork (@garuda-      │  browser/ fork/
+│ ENGINE: WebView (prototype) | Brave fork (@motion-      │  browser/ fork/
 │ devtools) — same CDP surface, engine-agnostic layer     │
 │ Foreground Service • Room DB • Keystore                 │  agent/runtime/
 └─────────────────────────────────────────────────────────┘
@@ -42,7 +42,7 @@ while (task belum selesai && budget belum habis):
 
 1. **One CDP session per tab.** `BrowserEngine.cdpSessionFor` matches the tab's
    WebView to a `/json/list` target and keeps a persistent `CdpTabSession`.
-2. **Stable marks.** Perception writes `data-garuda-mark="eN"` into the live
+2. **Stable marks.** Perception writes `data-motion-mark="eN"` into the live
    DOM; ids survive scroll/re-render, so the LLM's markId references stay valid.
 3. **Trusted input only.** All clicks/typing go through `Input.dispatch*`;
    JS is used for observation (crawl/extract) — never for acting.
@@ -51,6 +51,6 @@ while (task belum selesai && budget belum habis):
 5. **Crash-safe.** Every step is a Room row; unfinished tasks re-queue on boot
    (`BootResumeReceiver` + `resumeUnfinishedTasks`), compaction summary is
    checkpointed on the task row.
-6. **Engine swap path.** `DevToolsLocator` prefers `@garuda-devtools` (fork)
+6. **Engine swap path.** `DevToolsLocator` prefers `@motion-devtools` (fork)
    over `@webview_devtools_remote_<pid>` — the whole layer above is unchanged
    when the fork lands (fork/README.md).

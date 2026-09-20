@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.garuda.cdp"
+    namespace = "com.motion.cdp"
     compileSdk = 34
 
     defaultConfig {

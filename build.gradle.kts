@@ -1,4 +1,4 @@
-// Garuda — autonomous Android browser (agent layer phase).
+// Motion Browser — autonomous Android browser (agent layer phase).
 // Root build file: plugin versions shared by :app and :cdp-bridge.
 plugins {
     id("com.android.application") version "8.5.2" apply false

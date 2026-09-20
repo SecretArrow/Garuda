@@ -1,0 +1,98 @@
+package com.motion.browser
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.motion.cdp.DevToolsClient
+import com.motion.browser.browser.BrowserEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Flagship integration test (plan Prompt 2 acceptance item d): dispatch a tap
+ * THROUGH CDP Input.dispatchTouchEvent and verify the page received a
+ * isTrusted:true event — the core advantage over naive JS injection.
+ */
+@RunWith(AndroidJUnit4::class)
+class CdpTrustedInputTest {
+
+    companion object {
+        /** Shared discovery loop with CI-visible diagnostics on failure. */
+        internal suspend fun attachSessionWithDiagnostics(
+            engine: BrowserEngine,
+            tab: com.motion.browser.browser.MotionTab,
+        ): com.motion.cdp.CdpTabSession? = withTimeout(90_000) {
+            var lastProbe = ""
+            var attempt = 0
+            while (true) {
+                attempt++
+                val client = withContext(Dispatchers.IO) { DevToolsClient.autoDiscover() }
+                if (client != null) {
+                    val attached = runCatching { engine.cdpSessionFor(tab) }
+                    if (attached.isSuccess) return@withTimeout attached.getOrNull()
+                    val e = attached.exceptionOrNull()
+                    lastProbe = "attach failed: ${e?.javaClass?.name}: ${e?.message} @ ${e?.stackTrace?.firstOrNull()}" +
+                        " | " + com.motion.cdp.DevToolsLocator.diagnostics()
+                } else {
+                    lastProbe = "no socket: " + com.motion.cdp.DevToolsLocator.diagnostics()
+                }
+                if (attempt % 15 == 1) {
+                    println("MOTION_DIAG attempt=$attempt $lastProbe")
+                    android.util.Log.w("MOTION_DIAG", "attempt=$attempt $lastProbe")
+                }
+                kotlinx.coroutines.delay(500)
+            }
+            @Suppress("UNREACHABLE_CODE") null
+        }
+    }
+
+    @Test
+    fun tapViaCdpProducesTrustedEvent() = runBlocking {
+        val engine = ServiceLocator.browser
+        // Create the tab BEFORE the activity renders so BrowserScreen hosts it,
+        // then launch the real activity — the WebView gets a real window/layout,
+        // which is required for touch coordinates to mean anything.
+        val tab = withContext(Dispatchers.Main) {
+            engine.createTab("file:///android_asset/cdp_test.html")
+        }
+        androidx.test.core.app.ActivityScenario.launch(
+            com.motion.browser.MainActivity::class.java
+        )
+
+        // Wait for page load, then for the DevTools socket to expose the target.
+        val session = attachSessionWithDiagnostics(engine, tab)
+        assertNotNull("Could not attach a CDP session to the tab", session)
+        session!!.waitForLoad(15_000)
+
+        // Trust marker not set yet.
+        val before = session.evaluate("window.__lastTrusted === true").optBoolean("value", false)
+        assertTrue("Page must not be pre-trusted", !before)
+
+        // Precise button rect (never guess coordinates — plan §6B).
+        val rect = session.evaluate(
+            "(()=>{const r=document.getElementById('btn').getBoundingClientRect();" +
+                "return JSON.stringify([Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)])})()"
+        ).optString("value")
+        val arr = org.json.JSONArray(rect)
+        val x = arr.optInt(0) + arr.optInt(2) / 2
+        val y = arr.optInt(1) + arr.optInt(3) / 2
+
+        session.dispatchTap(x, y)
+        kotlinx.coroutines.delay(400)
+
+        val trusted = session.evaluate("window.__lastTrusted === true").optBoolean("value", false)
+        assertEquals("Input.dispatchTouchEvent must produce isTrusted:true events", true, trusted)
+
+        val clicks = session.evaluate("window.__clicks || 0").optInt("value", 0)
+        assertEquals(1, clicks)
+
+        session.close()
+        Unit
+    }
+}

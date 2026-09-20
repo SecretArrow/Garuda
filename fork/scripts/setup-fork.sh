@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Garuda fork build environment setup (plan Prompt 1 — Fase 0).
+# Motion Browser fork build environment setup (plan Prompt 1 — Fase 0).
 # Linux x64, 32GB+ RAM, 250GB+ SSD required. Run on the build machine ONLY.
 set -euo pipefail
 
-GARUDA_ROOT="${GARUDA_ROOT:-$HOME/garuda}"
+MOTION_ROOT="${MOTION_ROOT:-$HOME/motion}"
 DEPOT_TOOLS="${DEPOT_TOOLS:-$HOME/depot_tools}"
 BRANCH="${BRANCH:-master}"
 
@@ -19,7 +19,7 @@ fi
 export PATH="$DEPOT_TOOLS:$PATH"
 
 echo "==> [3/7] Brave source (brave-browser + chromium via npm init)"
-mkdir -p "$GARUDA_ROOT" && cd "$GARUDA_ROOT"
+mkdir -p "$MOTION_ROOT" && cd "$MOTION_ROOT"
 if [ ! -d brave-browser ]; then
   git clone --branch "$BRANCH" https://github.com/brave/brave-browser.git
   cd brave-browser
@@ -30,8 +30,8 @@ else
 fi
 
 echo "==> [4/7] GN args (android arm64 release)"
-mkdir -p out/GarudaArm64
-cat > out/GarudaArm64/args.gn <<'EOF'
+mkdir -p out/MotionArm64
+cat > out/MotionArm64/args.gn <<'EOF'
 target_os = "android"
 target_cpu = "arm64"
 is_official_build = true
@@ -42,22 +42,22 @@ ffmpeg_branding = "Chrome"
 proprietary_codecs = true
 enable_nacl = false
 EOF
-gn gen out/GarudaArm64
+gn gen out/MotionArm64
 
-echo "==> [5/7] Apply Garuda DevTools socket patch"
-cd "$GARUDA_ROOT/brave-browser"
+echo "==> [5/7] Apply Motion Browser DevTools socket patch"
+cd "$MOTION_ROOT/brave-browser"
 PATCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
-git apply --check "$PATCH_DIR/garuda-devtools-socket.patch" 2>/dev/null \
-  || git apply "$PATCH_DIR/garuda-devtools-socket.patch" \
+git apply --check "$PATCH_DIR/motion-devtools-socket.patch" 2>/dev/null \
+  || git apply "$PATCH_DIR/motion-devtools-socket.patch" \
   || echo "Patch already applied or needs rebase — check git status"
 
 echo "==> [6/7] Build (autoninja; 4-12h first time)"
-autoninja -C out/GarudaArm64 chrome_public_apk
+autoninja -C out/MotionArm64 chrome_public_apk
 
 echo "==> [7/7] Deploy"
-adb install -r out/GarudaArm64/apks/ChromePublic.apk
-adb shell cat /proc/net/unix | grep garuda-devtools && \
-  echo "OK: @garuda-devtools socket is live" || \
+adb install -r out/MotionArm64/apks/ChromePublic.apk
+adb shell cat /proc/net/unix | grep motion-devtools && \
+  echo "OK: @motion-devtools socket is live" || \
   echo "WARN: socket not found — verify the patch and that the app is running"
 
-echo "Done. APK: $GARUDA_ROOT/brave-browser/out/GarudaArm64/apks/ChromePublic.apk"
+echo "Done. APK: $MOTION_ROOT/brave-browser/out/MotionArm64/apks/ChromePublic.apk"

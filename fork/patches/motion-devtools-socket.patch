@@ -1,0 +1,86 @@
+# Motion Browser DevTools abstract unix socket patch (plan Prompt 1 item 4)
+#
+# Target: content/browser/devtools/devtools_http_handler.{cc,h} (+ manager
+# delegate wiring). Adds a permanent abstract-namespace unix socket listener
+# "@motion-devtools" to the DevTools HTTP handler so the in-process Kotlin
+# agent layer (cdp-bridge) can self-connect with trusted CDP input.
+#
+# NOTE: applies as a template against recent Brave/Chromium master. The
+# DevToolsHttpHandler API drifts between branches — rebase hunks as needed.
+# Do NOT enable remote-debugging-port; this patch is self-contained.
+#
+# --- a/content/browser/devtools/devtools_http_handler.cc
+# +++ b/content/browser/devtools/devtools_http_handler.cc
+# @@ -1,6 +1,7 @@
+#  #include "content/browser/devtools/devtools_http_handler.h"
+#
+#  #include "base/command_line.h"
+# +#include "base/strings/string_util.h"
+#  #include "base/functional/bind.h"
+#  #include "base/task/thread_pool.h"
+#  #include "content/public/browser/content_browser_client.h"
+# @@ <in DevToolsHttpHandler constructor section / ServerSocketFactory>
+#
+# The upstream ServerSocketFactory supports TCP only. We add an override that
+# returns a net::UnixDomainServerSocket bound to an abstract namespace name.
+#
+#  namespace content {
+#  namespace {
+#
+#  // Motion Browser: abstract unix socket name, only reachable by this process UID.
+#  const char kMotionDevToolsSocketName[] = "motion-devtools";
+#
+#  class MotionUnixSocketFactory : public DevToolsHttpHandler::ServerSocketFactory {
+#   public:
+#    MotionUnixSocketFactory()
+#        : DevToolsHttpHandler::ServerSocketFactory(
+#              /*ip=*/"", /*port=*/0, /*backlog=*/10) {}
+#
+#    std::unique_ptr<net::ServerSocket> Create() const override {
+#      auto socket = std::make_unique<net::UnixDomainServerSocket>(
+#          net::UnixDomainServerSocket::UseKCredentials::kAuthOK);
+#      // Leading '@' selects the abstract namespace on Linux/Android.
+#      if (!socket->BindWithAbstractSocket(std::string("@") + kMotionDevToolsSocketName)) {
+#        return nullptr;
+#      }
+#      return socket;
+#    }
+#  };
+#
+#  }  // namespace
+#
+# In DevToolsHttpHandler::Start() (or the factory selection point), when the
+# platform is Android (and kMotionDevToolsSocketName is not already bound),
+# instantiate the handler with MotionUnixSocketFactory IN ADDITION to the
+# default TCP factory (kept for WebView/chrome://inspect compatibility):
+#
+#    #if BUILDFLAG(IS_ANDROID)
+#    auto* motion_factory = new MotionUnixSocketFactory();
+#    motion_factory->Start(
+#        base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()}),
+#        base::BindRepeating(&DevToolsHttpHandler::ServerStarted,
+#                            weak_factory_.GetWeakPtr()));
+#    #endif
+#
+# --- a/content/browser/devtools/devtools_manager_delegate.cc
+# +++ b/content/browser/devtools/devtools_manager_delegate.cc
+# Ensure the http handler is started unconditionally on Android builds of
+# Motion Browser (upstream starts it only when the debug flag is set):
+#
+#    bool DevToolsManagerDelegate::AllowDevToolsFor(
+#        content::BrowserContext* browser_context, content::RenderProcessHost* process) {
+#      return true;  // Motion Browser: agent layer requires in-process DevTools.
+#    }
+#
+# --- security notes -----------------------------------------------------
+#  * Abstract namespace sockets are scoped to the app UID on Android: no other
+#    app can connect; no root/adb exposure beyond the process sandbox.
+#  * The HTTP handler keeps its Host validation: cdp-bridge sends Host: localhost.
+#  * No TCP listener is added; remote-debugging-port stays disabled.
+#
+# --- JNI side -----------------------------------------------------------
+# No new JNI is required for the WebView prototype (the socket is visible in
+# /proc/net/unix and connectable via android.net.LocalSocket ABSTRACT — see
+# cdp-bridge/DevToolsLocator.kt). If a direct notification of the socket name
+# is preferred, expose a tiny JNI getter returning kMotionDevToolsSocketName
+# from chrome/android and mirror it into DevToolsLocator.FORK_SOCKET_NAME.

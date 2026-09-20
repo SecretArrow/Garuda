@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Garuda</string>
+    <string name="app_name">Motion Browser</string>
     <string name="notif_channel_agent">Agent</string>
-    <string name="notif_channel_agent_desc">Garuda agent task progress</string>
+    <string name="notif_channel_agent_desc">Motion Browser agent task progress</string>
 </resources>
