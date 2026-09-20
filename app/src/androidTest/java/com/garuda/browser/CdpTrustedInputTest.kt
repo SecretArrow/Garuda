@@ -54,11 +54,16 @@ class CdpTrustedInputTest {
 
     @Test
     fun tapViaCdpProducesTrustedEvent() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val engine = BrowserEngine(context)
-        val tab = withContext(Dispatchers.Main) {
+        val engine = ServiceLocator.browser
+        // Create the tab BEFORE the activity renders so BrowserScreen hosts it,
+        // then launch the real activity — the WebView gets a real window/layout,
+        // which is required for touch coordinates to mean anything.
+        withContext(Dispatchers.Main) {
             engine.createTab("file:///android_asset/cdp_test.html")
         }
+        androidx.test.core.app.ActivityScenario.launch(
+            com.garuda.browser.MainActivity::class.java
+        )
 
         // Wait for page load, then for the DevTools socket to expose the target.
         val session = attachSessionWithDiagnostics(engine, tab)

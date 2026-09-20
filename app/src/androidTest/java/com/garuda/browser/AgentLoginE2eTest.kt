@@ -83,13 +83,17 @@ class AgentLoginE2eTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(context, GarudaDatabase::class.java)
             .allowMainThreadQueries().build()
-        val engine = BrowserEngine(context)
-        val tab = withContext(Dispatchers.Main) {
+        val engine = ServiceLocator.browser
+        withContext(Dispatchers.Main) {
             engine.createTab("file:///android_asset/login.html")
         }
+        androidx.test.core.app.ActivityScenario.launch(
+            com.garuda.browser.MainActivity::class.java
+        )
 
         val session = com.garuda.browser.CdpTrustedInputTest.attachSessionWithDiagnostics(engine, tab)
         assertTrue("CDP session required — ${com.garuda.cdp.DevToolsLocator.diagnostics()}", session != null)
+        session!!.waitForLoad(15_000)
 
         val agentSession = object : AgentSession {
             override suspend fun page() = CdpPageControl(session!!)
