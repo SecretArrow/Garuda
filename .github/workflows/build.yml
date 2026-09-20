@@ -75,20 +75,15 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            adb logcat -c
-            ./gradlew :app:connectedDebugAndroidTest --stacktrace || TEST_EXIT=$?
-            echo "=== DEVTOOLS SOCKETS ON DEVICE ==="
-            adb shell cat /proc/net/unix | grep -i devtools || echo "(none visible)"
-            adb logcat -d > emulator_logcat.txt || true
-            echo "=== CDP/AGENT MARKERS ==="
-            grep -aE "GARUDA_DIAG|AUTONOMOUS" emulator_logcat.txt | tail -40 || true
-            if grep -aq "FATAL EXCEPTION" emulator_logcat.txt; then
-              echo "::error::FATAL exception found in emulator logcat"
-              grep -aA 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60
-              exit 1
-            fi
-            echo "No FATAL exceptions — anti-crash gate passed"
+          script: >
+            adb logcat -c;
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace || TEST_EXIT=$?;
+            echo "=== DEVTOOLS SOCKETS ON DEVICE ===";
+            adb shell cat /proc/net/unix | grep -i devtools || echo "(none visible)";
+            adb logcat -d > emulator_logcat.txt || true;
+            echo "=== CDP/AGENT MARKERS ===";
+            grep -aE "GARUDA_DIAG|GARUDA_E2E" emulator_logcat.txt | tail -40 || true;
+            grep -aq "FATAL EXCEPTION" emulator_logcat.txt && { echo "::error::FATAL exception in logcat"; grep -aA 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60; exit 1; } || echo "No FATAL exceptions - anti-crash gate passed";
             exit ${TEST_EXIT:-0}
       - name: Upload emulator evidence
         if: always()
