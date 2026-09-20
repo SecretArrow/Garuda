@@ -117,7 +117,9 @@ class WsClient(
     fun connect() {
         check(socket == null) { "Already connected" }
         val s = android.net.LocalSocket()
-        s.connect(android.net.LocalSocketAddress(socketName, android.net.LocalSocketAddress.Namespace.ABSTRACT), connectTimeoutMs)
+        // NOTE: LocalSocket.connect(endpoint, timeout) throws UnsupportedOperationException
+        // (unimplemented in the framework) — always use the 1-arg blocking connect.
+        s.connect(android.net.LocalSocketAddress(socketName, android.net.LocalSocketAddress.Namespace.ABSTRACT))
         s.soTimeout = connectTimeoutMs
         val keyB64 = java.util.Base64.getEncoder().encodeToString(ByteArray(16).also { random.nextBytes(it) })
         val request = buildString {
