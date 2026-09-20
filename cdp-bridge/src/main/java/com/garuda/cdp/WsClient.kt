@@ -108,6 +108,8 @@ class WsClient(
     private val random = SecureRandom()
     private var socket: android.net.LocalSocket? = null
     private var input: InputStream? = null
+    /** Bytes read past the handshake header — must be replayed to the frame reader. */
+    private var handshakeLeftover: ByteArray = ByteArray(0)
     private val sendLock = Any()
     @Volatile private var closed = false
 
@@ -130,12 +132,13 @@ class WsClient(
         s.outputStream.write(request.toByteArray(Charsets.US_ASCII))
         s.outputStream.flush()
         val response = readHandshakeResponse(s.inputStream)
-        if (!response.contains("101")) {
-            throw IOException("WebSocket upgrade failed: ${response.lineSequence().firstOrNull()}")
+        if (!response.first.contains("101")) {
+            throw IOException("WebSocket upgrade failed: ${response.first.lineSequence().firstOrNull()}")
         }
         // Infinite read timeout: CDP connections stay quiet between events.
         // Liveness is enforced by per-command timeouts in CdpConnection.
         s.soTimeout = 0
+        handshakeLeftover = response.second
         socket = s
         input = s.inputStream
     }
@@ -156,9 +159,17 @@ class WsClient(
      * pings and skipping pong/close frames. Null on clean close.
      */
     fun receiveText(): String? {
-        val stream = input ?: throw IOException("Socket not connected")
+        val raw = input ?: throw IOException("Socket not connected")
+        // Replay whatever bytes arrived together with the handshake header first.
+        val stream: InputStream = if (handshakeLeftover.isNotEmpty()) {
+            val leftover = handshakeLeftover
+            handshakeLeftover = ByteArray(0)
+            java.io.SequenceInputStream(
+                java.io.ByteArrayInputStream(leftover),
+                raw,
+            )
+        } else raw
         val fragments = ByteArrayOutputStream()
-        var messageOpcode = 0
         while (true) {
             val frame = WsFrameCodec.decodeFrame(stream)
             when (frame.opcode) {
@@ -167,7 +178,6 @@ class WsClient(
                     if (frame.fin) {
                         return fragments.toString(Charsets.UTF_8.name()).also { fragments.reset() }
                     }
-                    messageOpcode = frame.opcode
                 }
                 WsFrameCodec.OP_CONTINUATION -> {
                     fragments.write(frame.payload)
@@ -200,8 +210,8 @@ class WsClient(
         input = null
     }
 
-    /** Reads the HTTP upgrade response header (bytes until CRLFCRLF). */
-    private fun readHandshakeResponse(stream: InputStream): String {
+    /** Reads the HTTP upgrade response header; returns (header, leftoverBytes). */
+    private fun readHandshakeResponse(stream: InputStream): Pair<String, ByteArray> {
         val buffer = ByteArrayOutputStream()
         val chunk = ByteArray(1024)
         var headerEnd = -1
@@ -216,6 +226,8 @@ class WsClient(
             } ?: -1
         }
         if (headerEnd < 0) throw IOException("Handshake timeout / no header terminator")
-        return String(buffer.toByteArray(), 0, headerEnd, Charsets.US_ASCII)
+        val header = String(buffer.toByteArray(), 0, headerEnd, Charsets.US_ASCII)
+        val leftover = buffer.toByteArray().copyOfRange(headerEnd + 4, buffer.size())
+        return header to leftover
     }
 }

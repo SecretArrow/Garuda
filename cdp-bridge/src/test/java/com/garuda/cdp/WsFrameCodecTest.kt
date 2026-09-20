@@ -69,4 +69,20 @@ class WsFrameCodecTest {
         assertEquals("one", String(WsFrameCodec.decodeFrame(stream).payload))
         assertEquals("two", String(WsFrameCodec.decodeFrame(stream).payload))
     }
+
+    @Test
+    fun `handshake leftover bytes must not desync the frame stream`() {
+        // Regression: bytes of the first WS frame often arrive glued to the
+        // handshake header read. They must be replayed, not dropped.
+        val frame = WsFrameCodec.encodeClientFrame(WsFrameCodec.OP_TEXT, "{\"id\":1}".toByteArray(), random)
+        val header = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n".toByteArray()
+        val combined = header + frame
+        val leftover = combined.copyOfRange(header.size, combined.size)
+        val stream = java.io.SequenceInputStream(
+            java.io.ByteArrayInputStream(leftover),
+            java.io.ByteArrayInputStream(WsFrameCodec.encodeClientFrame(WsFrameCodec.OP_TEXT, "{\"id\":2}".toByteArray(), random)),
+        )
+        assertEquals("{\"id\":1}", String(WsFrameCodec.decodeFrame(stream).payload))
+        assertEquals("{\"id\":2}", String(WsFrameCodec.decodeFrame(stream).payload))
+    }
 }
