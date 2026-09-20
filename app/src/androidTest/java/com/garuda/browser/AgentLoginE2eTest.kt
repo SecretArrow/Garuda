@@ -88,14 +88,8 @@ class AgentLoginE2eTest {
             engine.createTab("file:///android_asset/login.html")
         }
 
-        val session = withTimeout(60_000) {
-            while (true) {
-                runCatching { engine.cdpSessionFor(tab) }.getOrNull()?.let { return@withTimeout it }
-                kotlinx.coroutines.delay(500)
-            }
-            @Suppress("UNREACHABLE_CODE") null
-        }
-        assertTrue("CDP session required", session != null)
+        val session = com.garuda.browser.CdpTrustedInputTest.attachSessionWithDiagnostics(engine, tab)
+        assertTrue("CDP session required — ${com.garuda.cdp.DevToolsLocator.diagnostics()}", session != null)
 
         val agentSession = object : AgentSession {
             override suspend fun page() = CdpPageControl(session!!)

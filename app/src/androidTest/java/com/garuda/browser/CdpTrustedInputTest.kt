@@ -22,6 +22,34 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CdpTrustedInputTest {
 
+    companion object {
+        /** Shared discovery loop with CI-visible diagnostics on failure. */
+        internal suspend fun attachSessionWithDiagnostics(
+            engine: BrowserEngine,
+            tab: com.garuda.browser.browser.GarudaTab,
+        ): com.garuda.cdp.CdpTabSession? = withTimeout(90_000) {
+            var lastProbe = ""
+            var attempt = 0
+            while (true) {
+                attempt++
+                val client = withContext(Dispatchers.IO) { DevToolsClient.autoDiscover() }
+                if (client != null) {
+                    val attached = runCatching { engine.cdpSessionFor(tab) }
+                    if (attached.isSuccess) return@withTimeout attached.getOrNull()
+                    lastProbe = "attach failed: ${attached.exceptionOrNull()?.message}"
+                } else {
+                    lastProbe = com.garuda.cdp.DevToolsLocator.diagnostics()
+                }
+                if (attempt % 15 == 1) {
+                    println("GARUDA_DIAG attempt=$attempt $lastProbe")
+                    android.util.Log.w("GARUDA_DIAG", "attempt=$attempt $lastProbe")
+                }
+                kotlinx.coroutines.delay(500)
+            }
+            @Suppress("UNREACHABLE_CODE") null
+        }
+    }
+
     @Test
     fun tapViaCdpProducesTrustedEvent() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -31,16 +59,7 @@ class CdpTrustedInputTest {
         }
 
         // Wait for page load, then for the DevTools socket to expose the target.
-        val session = withTimeout(60_000) {
-            while (true) {
-                val client = withContext(Dispatchers.IO) { DevToolsClient.autoDiscover() }
-                if (client != null) {
-                    runCatching { engine.cdpSessionFor(tab) }.getOrNull()?.let { return@withTimeout it }
-                }
-                kotlinx.coroutines.delay(500)
-            }
-            @Suppress("UNREACHABLE_CODE") null
-        }
+        val session = attachSessionWithDiagnostics(engine, tab)
         assertNotNull("Could not attach a CDP session to the tab", session)
         session!!.waitForLoad(15_000)
 

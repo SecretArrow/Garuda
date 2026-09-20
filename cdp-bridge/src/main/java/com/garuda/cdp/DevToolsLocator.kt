@@ -3,27 +3,35 @@ package com.garuda.cdp
 import android.net.LocalSocket
 import android.net.LocalSocketAddress
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
-import java.io.File
 
 /**
  * Discovers the DevTools abstract unix socket this process can self-connect to.
  *
- * Two supported endpoints (plan §1 pillar 2):
+ * Supported endpoints (plan §1 pillar 2):
  *  - "garuda-devtools"                — the Brave/Chromium fork patch (Phase 1).
  *  - "webview_devtools_remote_<pid>"  — standard Android WebView debugging socket
- *    used by the agent-layer prototype app (plan "Catatan Penting": prototype
- *    the agent layer on a WebView host while the fork is being built).
+ *    used by the agent-layer prototype app (plan "Catatan Penting").
+ *
+ * Discovery is tolerant: exact-name candidates first, then a scan of every
+ * visible abstract socket containing "devtools" (covers WebView providers that
+ * host the devtools server in a different process).
  */
 object DevToolsLocator {
 
     const val FORK_SOCKET_NAME = "garuda-devtools"
+    private const val PROBE_TIMEOUT_MS = 2500
 
     /** Candidate names in priority order for this process. */
     fun candidateNames(): List<String> {
         val pid = android.os.Process.myPid()
-        return listOf(FORK_SOCKET_NAME, "webview_devtools_remote_$pid", "chrome_devtools_remote_$pid")
+        return listOf(
+            FORK_SOCKET_NAME,
+            "webview_devtools_remote_$pid",
+            "chrome_devtools_remote_$pid",
+        )
     }
 
     /** Names visible in /proc/net/unix (abstract sockets are prefixed with '@'). */
@@ -34,21 +42,34 @@ object DevToolsLocator {
         }
     }.getOrDefault(emptyList())
 
+    /** All names worth probing: exact candidates + any visible devtools socket. */
+    fun allCandidates(): List<String> {
+        val visible = visibleAbstractSockets()
+        val scanned = visible.filter { it.contains("devtools") }
+        return (candidateNames() + scanned).distinct()
+    }
+
     /**
      * Probes candidates by opening each socket and issuing an HTTP health check.
      * Returns the first name that answers, or null when none is live.
      */
-    fun findLiveSocket(timeoutMs: Int = 4000): String? {
-        val visible = visibleAbstractSockets().toSet()
-        for (name in candidateNames()) {
-            if (name !in visible) continue
+    fun findLiveSocket(): String? {
+        for (name in allCandidates()) {
             val ok = runCatching {
-                val body = LocalSocketHttp(name).get("/json/version", timeoutMs = timeoutMs)
+                val body = LocalSocketHttp(name).get("/json/version", timeoutMs = PROBE_TIMEOUT_MS)
                 body.contains("Browser") || body.contains("webSocketDebuggerUrl")
             }.getOrDefault(false)
             if (ok) return name
         }
         return null
+    }
+
+    /** Diagnostic dump used by tests/CI to explain discovery failures. */
+    fun diagnostics(): String = buildString {
+        append("visible=")
+        append(visibleAbstractSockets().filter { it.contains("devtools") })
+        append(" candidates=")
+        append(allCandidates())
     }
 }
 
@@ -75,7 +96,7 @@ class LocalSocketHttp(private val socketName: String) {
 
             val raw = readResponse(socket.inputStream, timeoutMs)
             val headerEnd = indexOfHeaderEnd(raw)
-                ?: throw IOException("No HTTP header terminator from $socketName")
+                ?: throw IOException("No HTTP header terminator from $socketName (got ${raw.size} bytes)")
             val headerText = String(raw, 0, headerEnd, Charsets.US_ASCII)
             val statusLine = headerText.lineSequence().firstOrNull().orEmpty()
             if (!statusLine.contains(" 200")) throw IOException("DevTools HTTP $statusLine for $path")

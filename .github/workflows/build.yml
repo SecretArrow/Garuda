@@ -77,19 +77,19 @@ jobs:
           disable-animations: true
           script: |
             adb logcat -c
-            ./gradlew :app:connectedDebugAndroidTest --stacktrace
+            ./gradlew :app:connectedDebugAndroidTest --stacktrace || TEST_EXIT=$?
+            echo "=== DEVTOOLS SOCKETS ON DEVICE ==="
+            adb shell cat /proc/net/unix | grep -i devtools || echo "(none visible)"
+            adb logcat -d > emulator_logcat.txt || true
             echo "=== CDP/AGENT MARKERS ==="
-            adb logcat -d | grep -E "CDP|GARUDA|FATAL" | tail -50 || true
-      - name: Anti-crash gate (logcat FATAL scan)
-        if: always()
-        run: |
-          adb logcat -d > emulator_logcat.txt || true
-          if grep -E "FATAL EXCEPTION" emulator_logcat.txt; then
-            echo "::error::FATAL exception found in emulator logcat"
-            grep -A 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60
-            exit 1
-          fi
-          echo "No FATAL exceptions — anti-crash gate passed"
+            grep -aE "GARUDA_DIAG|AUTONOMOUS" emulator_logcat.txt | tail -40 || true
+            if grep -aq "FATAL EXCEPTION" emulator_logcat.txt; then
+              echo "::error::FATAL exception found in emulator logcat"
+              grep -aA 15 "FATAL EXCEPTION" emulator_logcat.txt | head -60
+              exit 1
+            fi
+            echo "No FATAL exceptions — anti-crash gate passed"
+            exit ${TEST_EXIT:-0}
       - name: Upload emulator evidence
         if: always()
         uses: actions/upload-artifact@v4
