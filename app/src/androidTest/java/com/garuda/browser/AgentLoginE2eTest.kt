@@ -84,7 +84,7 @@ class AgentLoginE2eTest {
         val db = Room.inMemoryDatabaseBuilder(context, GarudaDatabase::class.java)
             .allowMainThreadQueries().build()
         val engine = ServiceLocator.browser
-        withContext(Dispatchers.Main) {
+        val tab = withContext(Dispatchers.Main) {
             engine.createTab("file:///android_asset/login.html")
         }
         androidx.test.core.app.ActivityScenario.launch(

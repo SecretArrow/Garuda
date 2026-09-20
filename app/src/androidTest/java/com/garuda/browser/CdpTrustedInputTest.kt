@@ -58,7 +58,7 @@ class CdpTrustedInputTest {
         // Create the tab BEFORE the activity renders so BrowserScreen hosts it,
         // then launch the real activity — the WebView gets a real window/layout,
         // which is required for touch coordinates to mean anything.
-        withContext(Dispatchers.Main) {
+        val tab = withContext(Dispatchers.Main) {
             engine.createTab("file:///android_asset/cdp_test.html")
         }
         androidx.test.core.app.ActivityScenario.launch(
