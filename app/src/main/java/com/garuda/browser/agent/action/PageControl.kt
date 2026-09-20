@@ -17,6 +17,7 @@ interface PageControl {
     suspend fun tap(x: Int, y: Int, pressDurationMs: Long = 80)
     suspend fun insertText(text: String)
     suspend fun pressEnter()
+    suspend fun keyPressBackspace()
     suspend fun scroll(direction: String, amount: Int)
     suspend fun hover(x: Int, y: Int)
     suspend fun drag(fromX: Int, fromY: Int, toX: Int, toY: Int)
@@ -31,6 +32,7 @@ class CdpPageControl(private val session: CdpTabSession) : PageControl {
     override suspend fun tap(x: Int, y: Int, pressDurationMs: Long) = session.dispatchTap(x, y, pressDurationMs)
     override suspend fun insertText(text: String) = session.insertText(text)
     override suspend fun pressEnter() = session.pressEnter()
+    override suspend fun keyPressBackspace() = session.pressBackspace()
     override suspend fun scroll(direction: String, amount: Int) = session.scroll(direction, amount)
     override suspend fun hover(x: Int, y: Int) = session.mouseMove(x, y)
     override suspend fun drag(fromX: Int, fromY: Int, toX: Int, toY: Int) =

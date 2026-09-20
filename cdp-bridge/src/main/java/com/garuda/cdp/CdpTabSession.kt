@@ -152,6 +152,21 @@ class CdpTabSession(
         keyEvent("keyUp", "Enter", 66, 13)
     }
 
+    suspend fun pressBackspace() {
+        cdp.call("Input.dispatchKeyEvent", JSONObject()
+            .put("type", "keyDown")
+            .put("key", "Backspace")
+            .put("code", "Backspace")
+            .put("windowsVirtualKeyCode", 8)
+            .put("nativeVirtualKeyCode", 8))
+        cdp.call("Input.dispatchKeyEvent", JSONObject()
+            .put("type", "keyUp")
+            .put("key", "Backspace")
+            .put("code", "Backspace")
+            .put("windowsVirtualKeyCode", 8)
+            .put("nativeVirtualKeyCode", 8))
+    }
+
     /** Smooth-ish scroll: sequence of mouse wheel events. */
     suspend fun scroll(direction: String, amount: Int) {
         val dy = if (direction == "up") -amount else amount

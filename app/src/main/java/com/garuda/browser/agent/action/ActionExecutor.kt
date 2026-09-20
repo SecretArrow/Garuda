@@ -239,14 +239,38 @@ class ActionExecutor(
         if (!editable) return ActionResult(false, "$markId is not an input")
         if (el.disabled) return ActionResult(false, "$markId is disabled")
         val p = page()
-        val rect = freshRect(markId) ?: (el.x to el.y)
-        p.tap(rect.first + el.width / 2, rect.second + el.height / 2)
-        kotlinx.coroutines.delay(150)
-        p.insertText(text)
-        kotlinx.coroutines.delay(120)
-        if (submit) p.pressEnter()
-        kotlinx.coroutines.delay(250)
-        return ActionResult(true, "typed into $markId" + if (submit) " and submitted" else "")
+        // Verify-and-retry (plan Prompt 4): tap→focus is asynchronous, so the
+        // first insertText can land nowhere. Verify the field value, clear via
+        // Backspace key events, and retry up to 3 times with growing delays.
+        repeat(3) { attempt ->
+            val rect = freshRect(markId) ?: (el.x to el.y)
+            p.tap(rect.first + el.width / 2, rect.second + el.height / 2)
+            kotlinx.coroutines.delay(300 + attempt * 250L)
+            p.insertText(text)
+            kotlinx.coroutines.delay(300)
+            val current = currentValue(markId)
+            if (current.contains(text)) {
+                if (submit) p.pressEnter()
+                kotlinx.coroutines.delay(250)
+                return ActionResult(true, "typed into $markId" + if (submit) " and submitted" else "")
+            }
+            clearField(markId, current.length)
+        }
+        return ActionResult(false, "could not type into $markId after 3 attempts")
+    }
+
+    private suspend fun currentValue(markId: String): String = runCatching {
+        page().evaluate(
+            "(()=>{const el=document.querySelector('[${Perception.MARK_ATTR}=\"$markId\"]');" +
+                "return el?(el.value!==undefined?String(el.value):''):''})()"
+        ).optString("value")
+    }.getOrDefault("")
+
+    private suspend fun clearField(markId: String, length: Int) {
+        val p = page()
+        repeat(length.coerceAtMost(80)) {
+            p.keyPressBackspace()
+        }
     }
 
     private suspend fun press(key: String): ActionResult {
