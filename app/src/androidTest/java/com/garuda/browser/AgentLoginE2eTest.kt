@@ -135,7 +135,18 @@ class AgentLoginE2eTest {
 
         // Verify the page state: real trusted login happened.
         val loggedIn = session!!.evaluate("window.__loggedIn === true").optBoolean("value", false)
-        assertEquals("Agent must have logged in via trusted input", true, loggedIn)
+        if (!loggedIn) {
+            val userVal = session.evaluate("document.getElementById('user')?.value").optString("value")
+            val passVal = session.evaluate("document.getElementById('pass')?.value").optString("value")
+            val dump = db.stepDao().forTask(taskId).joinToString("\n") {
+                "  ${it.kind}/${it.label}: ${it.detail.take(90)}"
+            }
+            assertEquals(
+                "Agent must have logged in via trusted input" +
+                    " [user='$userVal' pass='$passVal'] steps:\n$dump",
+                true, loggedIn,
+            )
+        }
         val welcome = session.evaluate("document.getElementById('result').textContent").optString("value")
         assertEquals("Welcome, Garuda!", welcome)
 
