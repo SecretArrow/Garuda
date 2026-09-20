@@ -124,11 +124,17 @@ class AgentLoginE2eTest {
 
         // Poll until the task finishes (or fails with the audit trail in the error).
         withTimeout(120_000) {
+            var lastSeq = 0
             var task = db.taskDao().byId(taskId)!!
             while (task.status !in listOf("DONE", "FAILED", "STOPPED")) {
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(400)
+                db.stepDao().forTask(taskId).filter { it.seq > lastSeq }.forEach {
+                    lastSeq = it.seq
+                    println("GARUDA_E2E #${it.seq} ${it.kind}/${it.label}: ${it.detail.take(130)}")
+                }
                 task = db.taskDao().byId(taskId)!!
             }
+            println("GARUDA_E2E final status=${task.status} summary=${task.summary} error=${task.error}")
             assertEquals("Task must finish successfully; error=${task.error}", "DONE", task.status)
             assertTrue("Summary must mention login", task.summary.orEmpty().contains("Logged"))
         }
