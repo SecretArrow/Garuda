@@ -30,9 +30,9 @@ object BrowserData {
         contentDisposition?.let { cd ->
             Regex("filename\\s*=\\s*(\"([^\"]*)\"|[^;\\s]+)", RegexOption.IGNORE_CASE)
                 .find(cd)?.let { m ->
-                    val raw = m.groupValues.getOrNull(2).takeIf { it.isNotEmpty() }
-                        ?: m.groupValues.getOrNull(1)?.trim('"', ' ')
-                    raw?.takeIf { it.isNotBlank() }?.let { return sanitizeFileName(it) }
+                    val quoted = m.groupValues[2]
+                    val raw = quoted.ifBlank { m.groupValues[1].trim('"', ' ') }
+                    raw.takeIf { it.isNotBlank() }?.let { return sanitizeFileName(it) }
                 }
         }
         mime?.takeIf { it.isNotBlank() }?.let { m ->

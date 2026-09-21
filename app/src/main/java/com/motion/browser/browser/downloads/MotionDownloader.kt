@@ -39,7 +39,7 @@ object MotionDownloader {
 
     private const val CHANNEL_ID = "motion_downloads"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val jobs = ConcurrentHashMap<String, Job>()
+    internal val jobs = ConcurrentHashMap<String, Job>()
     private val client by lazy {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

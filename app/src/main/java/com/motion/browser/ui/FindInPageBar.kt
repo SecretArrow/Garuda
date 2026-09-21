@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.automirrored.filled.ArrowDownward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -65,10 +65,10 @@ fun FindInPageBar(
                 keyboardActions = KeyboardActions(onSearch = { webView.findNext(true) }),
             )
             IconButton(onClick = { webView.findNext(false) }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowDownward, contentDescription = "Next match")
+                Icon(Icons.Filled.ArrowDownward, contentDescription = "Next match")
             }
             IconButton(onClick = { webView.findNext(true) }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowUpward, contentDescription = "Previous match")
+                Icon(Icons.Filled.ArrowUpward, contentDescription = "Previous match")
             }
             IconButton(onClick = {
                 webView.clearMatches()
