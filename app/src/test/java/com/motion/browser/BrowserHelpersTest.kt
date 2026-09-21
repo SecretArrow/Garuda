@@ -2,6 +2,7 @@ package com.motion.browser
 
 import com.motion.browser.browser.downloads.MotionDownloader
 import com.motion.browser.data.BrowserData
+import com.motion.browser.ui.normalizeUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
