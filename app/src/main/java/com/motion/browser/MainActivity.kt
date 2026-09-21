@@ -18,8 +18,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ServiceLocator.attach(this)
+        requestNotificationPermissionIfNeeded()
         consumeIntent(intent)
         setContent { com.motion.browser.ui.MotionBrowserApp() }
+    }
+
+    /** Download/agent progress notifications need a runtime grant on API 33+. */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            runCatching {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -41,6 +41,9 @@ sealed class MotionScreen(val route: String) {
     data object Browser : MotionScreen("browser")
     data object Dashboard : MotionScreen("dashboard")
     data object Settings : MotionScreen("settings")
+    data object Bookmarks : MotionScreen("bookmarks")
+    data object History : MotionScreen("history")
+    data object Downloads : MotionScreen("downloads")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,9 +96,17 @@ fun MotionBrowserApp() {
                         .padding(padding)
                 ) {
                     when (screen) {
-                        MotionScreen.Browser -> BrowserScreen(Modifier.fillMaxSize())
+                        MotionScreen.Browser ->
+                            BrowserScreen(Modifier.fillMaxSize(), onNavigate = { screen = it })
                         MotionScreen.Dashboard -> DashboardScreen(Modifier.fillMaxSize())
                         MotionScreen.Settings -> SettingsScreen(Modifier.fillMaxSize())
+                        MotionScreen.Bookmarks -> BookmarksScreen(onOpenUrl = { url ->
+                            openUrl(url); screen = MotionScreen.Browser
+                        })
+                        MotionScreen.History -> HistoryScreen(onOpenUrl = { url ->
+                            openUrl(url); screen = MotionScreen.Browser
+                        })
+                        MotionScreen.Downloads -> DownloadsScreen(Modifier.fillMaxSize())
                     }
                 }
             }
@@ -117,6 +128,14 @@ private fun navItems(): List<Triple<MotionScreen, ImageVector, String>> = listOf
     Triple(MotionScreen.Dashboard, Icons.Filled.Extension, "Tasks"),
     Triple(MotionScreen.Settings, Icons.Filled.Settings, "Settings"),
 )
+
+/** Opens [url] in the active browser tab (or a fresh one). */
+private fun openUrl(url: String) {
+    val engine = ServiceLocator.browser
+    val tab = engine.activeTab
+    if (tab == null) engine.createTab(url)
+    else tab.webView.loadUrl(com.motion.browser.ui.normalizeUrl(url))
+}
 
 @Composable
 private fun runningTaskCount(): Int {

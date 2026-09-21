@@ -3,7 +3,9 @@ package com.motion.browser.data
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
@@ -13,8 +15,46 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Persistence for the agent system (plan §2 bottom row + Prompt 6A):
  * tasks survive crash/reboot, every step is an audit log entry, providers and
- * schedules are user configuration. All entities are Room, schema v1.
+ * schedules are user configuration. Schema v2 adds browser data:
+ * bookmarks, history, downloads (non-destructive migration 1→2).
  */
+
+@Entity(
+    tableName = "bookmarks",
+    indices = [Index(value = ["url"], unique = true)],
+)
+data class BookmarkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val url: String,
+    val title: String,
+    val folder: String = "",
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "history",
+    indices = [Index(value = ["url"])],
+)
+data class HistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val url: String,
+    val title: String,
+    val visitedAt: Long,
+)
+
+@Entity(tableName = "downloads")
+data class DownloadEntity(
+    @PrimaryKey val id: String,
+    val url: String,
+    val fileName: String,
+    val uri: String = "",
+    val mime: String = "",
+    val sizeBytes: Long = 0,
+    /** RUNNING, DONE, FAILED, CANCELLED */
+    val status: String,
+    val createdAt: Long,
+    val error: String? = null,
+)
 @Entity(tableName = "tasks")
 data class TaskEntity(
     @PrimaryKey val id: String,
@@ -175,9 +215,98 @@ interface ScheduleDao {
     suspend fun delete(id: String)
 }
 
+@Dao
+interface BookmarkDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(bookmark: BookmarkEntity)
+
+    @Query("DELETE FROM bookmarks WHERE url = :url")
+    suspend fun deleteByUrl(url: String)
+
+    @Query("DELETE FROM bookmarks WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
+    fun all(): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks WHERE title LIKE '%' || :q || '%' OR url LIKE '%' || :q || '%' ORDER BY createdAt DESC")
+    fun search(q: String): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
+    fun byUrl(url: String): Flow<BookmarkEntity?>
+
+    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
+    suspend fun byUrlOnce(url: String): BookmarkEntity?
+}
+
+@Dao
+interface HistoryDao {
+    @Insert suspend fun insert(entry: HistoryEntity)
+    @Update suspend fun update(entry: HistoryEntity)
+
+    @Query("SELECT * FROM history WHERE url = :url AND visitedAt >= :dayStart LIMIT 1")
+    suspend fun sameUrlSameDay(url: String, dayStart: Long): HistoryEntity?
+
+    @Query("SELECT * FROM history ORDER BY visitedAt DESC LIMIT :limit")
+    fun recent(limit: Int): Flow<List<HistoryEntity>>
+
+    @Query("SELECT * FROM history WHERE title LIKE '%' || :q || '%' OR url LIKE '%' || :q || '%' ORDER BY visitedAt DESC LIMIT 300")
+    fun search(q: String): Flow<List<HistoryEntity>>
+
+    /** Most visited URLs (omnibox suggestions + new tab page). */
+    @Query("SELECT url, MAX(title) AS title, MAX(visitedAt) AS visitedAt, COUNT(*) AS hits FROM history GROUP BY url ORDER BY hits DESC, visitedAt DESC LIMIT :limit")
+    fun topSites(limit: Int): Flow<List<TopSiteRow>>
+
+    @Query("DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY visitedAt DESC LIMIT :keep)")
+    suspend fun prune(keep: Int)
+
+    @Query("DELETE FROM history") suspend fun clear()
+
+    @Query("DELETE FROM history WHERE visitedAt < :before") suspend fun clearBefore(before: Long)
+}
+
+/** Aggregated row for [HistoryDao.topSites]. */
+data class TopSiteRow(val url: String, val title: String, val visitedAt: Long, val hits: Int)
+
+@Dao
+interface DownloadDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(download: DownloadEntity)
+
+    @Query("SELECT * FROM downloads ORDER BY createdAt DESC")
+    fun all(): Flow<List<DownloadEntity>>
+
+    @Query("SELECT * FROM downloads WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): DownloadEntity?
+
+    @Query("DELETE FROM downloads WHERE id = :id") suspend fun delete(id: String)
+
+    @Query("DELETE FROM downloads") suspend fun clear()
+}
+
+/** Non-destructive schema evolution: browser data tables (v1 → v2). */
+val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `bookmarks` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`url` TEXT NOT NULL, `title` TEXT NOT NULL, `folder` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)"
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_bookmarks_url` ON `bookmarks` (`url`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `history` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`url` TEXT NOT NULL, `title` TEXT NOT NULL, `visitedAt` INTEGER NOT NULL)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_history_url` ON `history` (`url`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `downloads` (`id` TEXT NOT NULL, `url` TEXT NOT NULL, " +
+                "`fileName` TEXT NOT NULL, `uri` TEXT NOT NULL, `mime` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, " +
+                "`status` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `error` TEXT, PRIMARY KEY(`id`))"
+        )
+    }
+}
+
 @Database(
-    entities = [TaskEntity::class, StepEntity::class, ProviderEntity::class, ScheduleEntity::class],
-    version = 1,
+    entities = [TaskEntity::class, StepEntity::class, ProviderEntity::class, ScheduleEntity::class,
+        BookmarkEntity::class, HistoryEntity::class, DownloadEntity::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class MotionDatabase : RoomDatabase() {
@@ -185,4 +314,7 @@ abstract class MotionDatabase : RoomDatabase() {
     abstract fun stepDao(): StepDao
     abstract fun providerDao(): ProviderDao
     abstract fun scheduleDao(): ScheduleDao
+    abstract fun bookmarkDao(): BookmarkDao
+    abstract fun historyDao(): HistoryDao
+    abstract fun downloadDao(): DownloadDao
 }

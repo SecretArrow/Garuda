@@ -76,6 +76,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: >
+            adb shell pm grant com.motion.browser.debug android.permission.POST_NOTIFICATIONS 2>/dev/null || true;
             adb logcat -c;
             ./gradlew :app:connectedDebugAndroidTest --stacktrace || TEST_EXIT=$?;
             echo "=== DEVTOOLS SOCKETS ON DEVICE ===";

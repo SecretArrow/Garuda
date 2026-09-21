@@ -53,8 +53,21 @@ fork/                  Kit build Brave fork (Fase 0–1)
   (`CdpTrustedInputTest`)
 - ✅ Agent E2E: login form di halaman nyata diselesaikan loop
   perceive → LLM → execute → verify (`AgentLoginE2eTest`)
-- ✅ Auto-detect provider (MockWebServer), WS frame codec, serializer, scheduler
-  (unit tests)
+- ✅ Auto-detect provider (MockWebServer), WS frame codec, serializer, scheduler,
+  URL normalization & helpers (unit tests)
+
+## Fitur browser
+
+- Omnibox dengan saran bookmark + riwayat + pencarian (DuckDuckGo), indikator
+  HTTPS, progress bar, error card + retry, pull-to-refresh
+- Tab switcher (bottom sheet), tab strip, tab incognito (tanpa riwayat),
+  desktop site, find-in-page, bottom bar back/forward/home
+- Bookmarks, History (grup per hari + search + clear), Downloads manager
+  (MediaStore `Download/Motion`, notifikasi progres + cancel)
+- New tab page: top sites dari riwayat + bookmark terbaru
+- Background: foreground service + pump antrean (concurrency cap), notifikasi
+  live dengan Pause/Resume/Stop, partial wake-lock saat task jalan, boot
+  auto-resume, cron scheduler, battery-optimization onboarding di Settings
 
 ## Mulai cepat
 

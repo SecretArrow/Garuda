@@ -31,6 +31,7 @@ class MotionAgentService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pumpJob: Job? = null
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -47,6 +48,14 @@ class MotionAgentService : Service() {
             ACTION_STOP -> ServiceLocator.orchestrator?.let { o ->
                 ServiceLocator.activeTaskId()?.let { o.stop(it) }
             }
+            ACTION_RESUME -> scope.launch {
+                runCatching {
+                    val now = System.currentTimeMillis()
+                    ServiceLocator.database.taskDao().unfinished()
+                        .filter { it.status == "PAUSED" }
+                        .forEach { ServiceLocator.database.taskDao().setStatus(it.id, "QUEUED", now) }
+                }
+            }
         }
         return START_STICKY
     }
@@ -56,6 +65,7 @@ class MotionAgentService : Service() {
     override fun onDestroy() {
         pumpJob?.cancel()
         scope.cancel()
+        runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         super.onDestroy()
     }
 
@@ -70,12 +80,16 @@ class MotionAgentService : Service() {
                 val tasks = ServiceLocator.database.taskDao().unfinished()
                 val queued = tasks.filter { it.status == "QUEUED" }
                 val running = tasks.filter { it.status == "RUNNING" || it.status == "PLANNING" }
+                val paused = tasks.count { it.status == "PAUSED" }
+                val waiting = tasks.count { it.status == "WAITING_HUMAN" }
                 val settings = ServiceLocator.agentSettings.settings.first()
                 val capacity = (settings.maxParallelTabs - running.size).coerceAtLeast(0)
                 queued.take(capacity).forEach { task ->
-                    ServiceLocator.setActiveTaskId(task.id)
                     orchestrator.launch(task.id, scope)
                 }
+                // Pause/Stop actions target the OLDEST running task.
+                running.firstOrNull()?.let { ServiceLocator.setActiveTaskId(it.id) }
+                holdWakeLock(running.isNotEmpty())
                 val active = running.firstOrNull() ?: queued.firstOrNull()
                 updateNotification(
                     when {
@@ -83,12 +97,31 @@ class MotionAgentService : Service() {
                         else -> "Task: ${active.goal.take(40)}… (step ${active.stepCount}/${active.maxSteps})"
                     },
                     when {
+                        waiting > 0 -> "Waiting for your answer — tap to open"
                         active?.status == "WAITING_HUMAN" -> "Waiting for your answer — tap to open"
                         else -> "Motion Browser runs in the background"
                     },
+                    showPause = running.isNotEmpty(),
+                    showResume = paused > 0,
                 )
             }
             delay(2000)
+        }
+    }
+
+    /** Keeps the CPU alive while tasks execute (Doze-safe, 30 min re-arm). */
+    private fun holdWakeLock(active: Boolean) {
+        runCatching {
+            val pm = getSystemService(android.os.PowerManager::class.java) ?: return
+            if (active) {
+                val lock = wakeLock ?: pm.newWakeLock(
+                    android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                    "motion:agent-runner",
+                ).also { wakeLock = it }
+                if (!lock.isHeld) lock.acquire(30 * 60 * 1000L)
+            } else {
+                wakeLock?.takeIf { it.isHeld }?.release()
+            }
         }
     }
 
@@ -102,34 +135,43 @@ class MotionAgentService : Service() {
         }
     }
 
-    private fun buildNotification(title: String, text: String): Notification {
+    private fun buildNotification(
+        title: String,
+        text: String,
+        showPause: Boolean = false,
+        showResume: Boolean = false,
+    ): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val pause = PendingIntent.getService(
-            this, 1, Intent(this, MotionAgentService::class.java).setAction(ACTION_PAUSE),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stop = PendingIntent.getService(
-            this, 2, Intent(this, MotionAgentService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_motion)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
             .setContentIntent(open)
-            .addAction(0, "Pause", pause)
-            .addAction(0, "Stop", stop)
-            .build()
+        if (showPause) builder.addAction(0, "Pause", action(ACTION_PAUSE))
+        if (showResume) builder.addAction(0, "Resume", action(ACTION_RESUME))
+        builder.addAction(0, "Stop", action(ACTION_STOP))
+        return builder.build()
     }
 
-    private fun updateNotification(title: String, text: String) {
+    private fun action(actionName: String): PendingIntent = PendingIntent.getService(
+        this, actionName.hashCode() and 0xFFFF,
+        Intent(this, MotionAgentService::class.java).setAction(actionName),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun updateNotification(
+        title: String,
+        text: String,
+        showPause: Boolean = false,
+        showResume: Boolean = false,
+    ) {
         runCatching {
             getSystemService(android.app.NotificationManager::class.java)
-                .notify(NOTIF_ID, buildNotification(title, text))
+                .notify(NOTIF_ID, buildNotification(title, text, showPause, showResume))
         }
     }
 
@@ -138,6 +180,7 @@ class MotionAgentService : Service() {
         private const val NOTIF_ID = 41
         private const val ACTION_PAUSE = "com.motion.browser.PAUSE_TASK"
         private const val ACTION_STOP = "com.motion.browser.STOP_TASK"
+        private const val ACTION_RESUME = "com.motion.browser.RESUME_TASK"
 
         fun start(context: Context) {
             val intent = Intent(context, MotionAgentService::class.java)

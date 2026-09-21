@@ -42,6 +42,14 @@ object ServiceLocator {
     var orchestrator: AgentOrchestrator? = null
         private set
 
+    /** Application context for subsystems (downloader, notifications). */
+    val appCtx: Context
+        get() = appContext
+
+    /** True once [attach] has completed (guards WebView callbacks in tests). */
+    val isAttached: Boolean
+        get() = attached
+
     @Volatile private var currentTaskId: String? = null
 
     fun attach(context: Context) {
@@ -50,6 +58,7 @@ object ServiceLocator {
             if (attached) return
             appContext = context.applicationContext
             database = Room.databaseBuilder(appContext, MotionDatabase::class.java, "motion.db")
+                .addMigrations(com.motion.browser.data.MIGRATION_1_2)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
             agentSettings = AgentSettingsRepository(appContext)

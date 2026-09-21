@@ -3,4 +3,6 @@
     <string name="app_name">Motion Browser</string>
     <string name="notif_channel_agent">Agent</string>
     <string name="notif_channel_agent_desc">Motion Browser agent task progress</string>
+    <string name="notif_channel_downloads">Downloads</string>
+    <string name="notif_channel_downloads_desc">Download progress and completion</string>
 </resources>
